@@ -64,6 +64,8 @@ export async function POST(req: Request) {
       modelId,
     } = (await req.json()) as OutlineRequest;
 
+    console.log(`[OutlineAPI] Request received: Prompt="${prompt}", Language=${language}, ModelProvider=${modelProvider}, ModelId="${modelId}"`);
+
     if (!prompt || !numberOfCards || !language) {
       return NextResponse.json(
         { error: "Missing required fields" },
@@ -107,11 +109,19 @@ export async function POST(req: Request) {
       prompt: formattedPrompt,
     });
 
-    return result.toDataStreamResponse();
+    return result.toDataStreamResponse({
+      getErrorMessage: (error) => {
+        console.error("Stream error:", error);
+        // Return full error message for debugging
+        if (error instanceof Error) return error.message;
+        return String(error);
+      }
+    });
   } catch (error) {
     console.error("Error in outline generation:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { error: "Failed to generate outline" },
+      { error: `Failed to generate outline: ${errorMessage}` },
       { status: 500 },
     );
   }

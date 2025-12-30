@@ -23,21 +23,24 @@ export function ThemeToggle() {
 
   return (
     <Button
+      asChild
       variant="outline"
-      className="flex w-full items-center justify-between gap-2 text-primary"
+      className="flex w-full items-center justify-between gap-2 text-primary cursor-pointer"
       onClick={toggleTheme}
     >
-      <span>Change Theme</span>
-      <div className="flex items-center">
-        <Sun className="h-4 w-4 rotate-0 transition-all dark:hidden" />
-        <Moon className="hidden h-4 w-4 rotate-0 transition-all dark:block" />
-        <Switch
-          checked={theme === "dark"}
-          onCheckedChange={toggleTheme}
-          className="ml-2"
-        />
+      <div>
+        <span>Change Theme</span>
+        <div className="flex items-center">
+          <Sun className="h-4 w-4 rotate-0 transition-all dark:hidden" />
+          <Moon className="hidden h-4 w-4 rotate-0 transition-all dark:block" />
+          <Switch
+            checked={theme === "dark"}
+            onCheckedChange={toggleTheme}
+            className="ml-2 pointer-events-none"
+          />
+        </div>
+        <span className="sr-only">Toggle theme</span>
       </div>
-      <span className="sr-only">Toggle theme</span>
     </Button>
   );
 }

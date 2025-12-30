@@ -101,19 +101,20 @@ export function SlideContainer({
         className={cn(
           "relative w-full",
           !isPresenting &&
-            (slideWidth ?? currentSlide?.width ?? "M") === "S" &&
-            "max-w-4xl",
+          (slideWidth ?? currentSlide?.width ?? "M") === "S" &&
+          "max-w-4xl",
           !isPresenting &&
-            (slideWidth ?? currentSlide?.width ?? "M") === "M" &&
-            "max-w-5xl",
+          (slideWidth ?? currentSlide?.width ?? "M") === "M" &&
+          "max-w-5xl",
           !isPresenting &&
-            (slideWidth ?? currentSlide?.width ?? "M") === "L" &&
-            "max-w-6xl",
+          (slideWidth ?? currentSlide?.width ?? "M") === "L" &&
+          "max-w-6xl",
           isPresenting && "h-full w-full",
           className,
         )}
       >
-        {!isPresenting && (
+        {/* Hide edit controls in presenting mode or read-only mode */}
+        {!isPresenting && !isReadOnly && (
           <div className="absolute left-4 top-2 z-[100] flex opacity-0 transition-opacity duration-200 group-hover/card-container:opacity-100">
             <Button
               variant="ghost"
@@ -192,11 +193,10 @@ export function SlideContainer({
             {Array.from({ length: slidesCount ?? 0 }).map((_, index) => (
               <button
                 key={index}
-                className={`h-full flex-1 rounded-full transition-all ${
-                  index === currentSlideIndex
+                className={`h-full flex-1 rounded-full transition-all ${index === currentSlideIndex
                     ? "bg-primary shadow-sm"
                     : "bg-white/20 hover:bg-white/40"
-                }`}
+                  }`}
                 onClick={() => setCurrentSlideIndex(index)}
                 aria-label={`Go to slide ${index + 1}`}
               />

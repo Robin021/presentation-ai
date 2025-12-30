@@ -7,14 +7,74 @@ import { db } from "@/server/db";
 import Together from "together-ai";
 import { UTFile } from "uploadthing/server";
 
-const together = new Together({ apiKey: env.TOGETHER_AI_API_KEY });
+const together = env.TOGETHER_AI_API_KEY
+  ? new Together({ apiKey: env.TOGETHER_AI_API_KEY })
+  : null;
 
 export type ImageModelList =
   | "black-forest-labs/FLUX1.1-pro"
   | "black-forest-labs/FLUX.1-schnell"
   | "black-forest-labs/FLUX.1-schnell-Free"
   | "black-forest-labs/FLUX.1-pro"
-  | "black-forest-labs/FLUX.1-dev";
+  | "black-forest-labs/FLUX.1-dev"
+  | "qwen-image-plus"; // Added Aliyun model
+
+async function generateWithAliyun(prompt: string) {
+  if (!env.DASHSCOPE_API_KEY) throw new Error("DashScope API Key is missing");
+
+  // Use official API format (synchronous, no async header)
+  const response = await fetch(
+    "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${env.DASHSCOPE_API_KEY}`,
+        // No X-DashScope-Async header = synchronous mode
+      },
+      body: JSON.stringify({
+        model: "qwen-image-plus",
+        input: {
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  text: prompt,
+                },
+              ],
+            },
+          ],
+        },
+        parameters: {
+          negative_prompt: "",
+          prompt_extend: true,
+          watermark: false,
+          size: "1024*1024",
+        },
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`Aliyun API Error Body: ${errorText}`);
+    throw new Error(`Aliyun API error: ${response.status} ${response.statusText} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  console.log("Aliyun image generation response:", JSON.stringify(data, null, 2));
+
+  // The image URL should be in output.choices[0].message.content[0].image
+  const imageUrl = data.output?.choices?.[0]?.message?.content?.[0]?.image
+    || data.output?.results?.[0]?.url;
+
+  if (!imageUrl) {
+    throw new Error(`Aliyun did not return an image URL. Response: ${JSON.stringify(data)}`);
+  }
+
+  return imageUrl;
+}
 
 export async function generateImageAction(
   prompt: string,
@@ -29,26 +89,29 @@ export async function generateImageAction(
   }
 
   try {
-    console.log(`Generating image with model: ${model}`);
+    let imageUrl: string | undefined;
 
-    // Generate the image using Together AI
-    const response = (await together.images.create({
-      model: model,
-      prompt: prompt,
-      width: 1024,
-      height: 768,
-      steps: model.includes("schnell") ? 4 : 28, // Fewer steps for schnell models
-      n: 1,
-    })) as unknown as {
-      id: string;
-      model: string;
-      object: string;
-      data: {
-        url: string;
-      }[];
-    };
-
-    const imageUrl = response.data[0]?.url;
+    // Prioritize Aliyun
+    if (env.DASHSCOPE_API_KEY) {
+      console.log(`Generating image with Aliyun (qwen-image-plus)`);
+      imageUrl = await generateWithAliyun(prompt);
+    } else if (together) {
+      // Fallback to Together
+      console.log(`Generating image with Together AI model: ${model}`);
+      const response = (await together.images.create({
+        model: model,
+        prompt: prompt,
+        width: 1024,
+        height: 768,
+        steps: model.includes("schnell") ? 4 : 28,
+        n: 1,
+      })) as unknown as {
+        data: { url: string }[];
+      };
+      imageUrl = response.data[0]?.url;
+    } else {
+      throw new Error("No image generation provider configured");
+    }
 
     if (!imageUrl) {
       throw new Error("Failed to generate image");
@@ -56,10 +119,10 @@ export async function generateImageAction(
 
     console.log(`Generated image URL: ${imageUrl}`);
 
-    // Download the image from Together AI URL
+    // Download the image
     const imageResponse = await fetch(imageUrl);
     if (!imageResponse.ok) {
-      throw new Error("Failed to download image from Together AI");
+      throw new Error("Failed to download image from provider");
     }
 
     const imageBlob = await imageResponse.blob();
@@ -86,7 +149,7 @@ export async function generateImageAction(
     // Store in database with the permanent URL
     const generatedImage = await db.generatedImage.create({
       data: {
-        url: permanentUrl, // Store the UploadThing URL instead of the Together AI URL
+        url: permanentUrl, // Store the UploadThing URL
         prompt: prompt,
         userId: session.user.id,
       },

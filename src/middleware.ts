@@ -1,12 +1,24 @@
 import { auth } from "@/server/auth";
 import { NextResponse, type NextRequest } from "next/server";
 
+// Routes that should be accessible without authentication
+const publicRoutes = [
+  "/auth",
+  "/api",
+  "/share", // Public shared presentations
+];
+
+function isPublicRoute(pathname: string): boolean {
+  return publicRoutes.some((route) => pathname.startsWith(route));
+}
+
 export async function middleware(request: NextRequest) {
   const session = await auth();
-  const isAuthPage = request.nextUrl.pathname.startsWith("/auth");
+  const pathname = request.nextUrl.pathname;
+  const isAuthPage = pathname.startsWith("/auth");
 
   // Always redirect from root to /presentation
-  if (request.nextUrl.pathname === "/") {
+  if (pathname === "/") {
     return NextResponse.redirect(new URL("/presentation", request.url));
   }
 
@@ -16,7 +28,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // If user is not authenticated and trying to access a protected route, redirect to sign-in
-  if (!session && !isAuthPage && !request.nextUrl.pathname.startsWith("/api")) {
+  if (!session && !isPublicRoute(pathname)) {
     return NextResponse.redirect(
       new URL(
         `/auth/signin?callbackUrl=${encodeURIComponent(request.url)}`,
@@ -30,5 +42,6 @@ export async function middleware(request: NextRequest) {
 
 // Add routes that should be protected by authentication
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|fonts).*)"],
 };
+

@@ -46,7 +46,7 @@ export function ShareButton() {
       if (variables) {
         // Create share link
         const baseUrl = window.location.origin;
-        const shareUrl = `${baseUrl}/presentation/share/${currentPresentationId}`;
+        const shareUrl = `${baseUrl}/share/${currentPresentationId}`;
         setShareLink(shareUrl);
         toast.success("Presentation is now shared publicly");
       } else {

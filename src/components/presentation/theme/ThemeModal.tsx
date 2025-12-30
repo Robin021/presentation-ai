@@ -9,6 +9,7 @@ import {
   Dialog,
   DialogClose,
   DialogContent,
+  DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -78,8 +79,13 @@ export function ThemeModal({ children }: { children?: ReactNode }) {
     });
 
   const handleSelectTheme = (theme: CustomTheme) => {
-    // Instead of just passing the ID, pass the full theme data
-    setTheme(theme.id, theme.themeData);
+    // Merge name and description into the theme data for display purposes
+    const themeDataWithMeta: ThemeProperties = {
+      ...theme.themeData,
+      name: theme.name,
+      description: theme.description ?? theme.themeData.description ?? "",
+    };
+    setTheme(theme.id, themeDataWithMeta);
     setIsOpen(false);
   };
 
@@ -92,6 +98,7 @@ export function ThemeModal({ children }: { children?: ReactNode }) {
         shouldHaveClose={false}
         className="h-[60vh] max-w-5xl overflow-auto"
       >
+        <DialogTitle className="sr-only">Theme Gallery</DialogTitle>
         <div className="flex h-full flex-col ">
           <Tabs
             defaultValue="my-themes"

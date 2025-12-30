@@ -68,6 +68,7 @@ export async function POST(req: Request) {
       modelProvider = "openai",
       modelId,
     } = (await req.json()) as OutlineRequest;
+    console.log("[Outline] Request:", { prompt, numberOfCards, language, modelProvider, modelId });
 
     if (!prompt || !numberOfCards || !language) {
       return NextResponse.json(
@@ -119,13 +120,24 @@ export async function POST(req: Request) {
       },
       maxSteps: 5, // Allow up to 5 tool calls
       toolChoice: "auto", // Let the model decide when to use tools
+      onFinish: (result) => {
+        console.log("[Outline] Stream finished. Output length:", result.text.length);
+        console.log("[Outline] Full Output:", result.text);
+      },
     });
 
-    return result.toDataStreamResponse();
+    return result.toDataStreamResponse({
+      getErrorMessage: (error) => {
+        console.error("Stream error (Search):", error);
+        if (error instanceof Error) return error.message;
+        return String(error);
+      }
+    });
   } catch (error) {
     console.error("Error in outline generation with search:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { error: "Failed to generate outline with search" },
+      { error: `Failed to generate outline with search: ${errorMessage}` },
       { status: 500 },
     );
   }

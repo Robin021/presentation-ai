@@ -19,10 +19,12 @@ import { GlobalUndoRedoHandler } from "./GlobalUndoRedoHandler";
 
 interface PresentationSlidesViewProps {
   isGeneratingPresentation: boolean;
+  readOnly?: boolean;
 }
 
 export const PresentationSlidesView = ({
   isGeneratingPresentation,
+  readOnly = false,
 }: PresentationSlidesViewProps) => {
   const currentSlideIndex = usePresentationState((s) => s.currentSlideIndex);
   const isPresenting = usePresentationState((s) => s.isPresenting);
@@ -38,8 +40,10 @@ export const PresentationSlidesView = ({
     (s) => s.shouldShowExitHeader,
   );
   const { items, sensors, handleDragEnd } = usePresentationSlides();
-  // Use the slide change watcher to automatically save changes
-  useSlideChangeWatcher({ debounceDelay: 600 });
+
+  // Use the slide change watcher to automatically save changes (only when not read-only)
+  useSlideChangeWatcher({ debounceDelay: 600, enabled: !readOnly });
+
   // Handle keyboard navigation in presentation mode
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -73,62 +77,77 @@ export const PresentationSlidesView = ({
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, [isPresenting]);
 
-  return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragEnd={handleDragEnd}
-    >
-      <SortableContext items={items} strategy={verticalListSortingStrategy}>
-        <PresentModeHeader
-          presentationTitle={currentPresentationTitle}
-          showHeader={isPresenting && shouldShowExitHeader}
-        />
+  // In read-only mode, render without DndContext for sorting
+  const renderSlides = () => (
+    <PlateController>
+      {!readOnly && <GlobalUndoRedoHandler />}
 
-        <ThinkingDisplay
-          thinking={usePresentationState.getState().presentationThinking}
-          isGenerating={isGeneratingPresentation}
-          title="AI is thinking about your presentation..."
-        />
-
-        <PlateController>
-          <GlobalUndoRedoHandler />
-
-          {items.map((slide, index) => (
+      {items.map((slide, index) => (
+        <div
+          key={slide.id}
+          className={`slide-wrapper slide-wrapper-${index} w-full`}
+        >
+          <SlideContainer
+            index={index}
+            id={slide.id}
+            slideWidth={slide.width}
+            slidesCount={items.length}
+            isReadOnly={readOnly}
+          >
             <div
-              key={slide.id}
-              className={`slide-wrapper slide-wrapper-${index} w-full`}
+              className={cn(
+                `slide-container-${index}`,
+                isPresenting && "h-screen w-screen",
+              )}
             >
-              <SlideContainer
-                index={index}
+              <PresentationEditor
+                initialContent={slide}
+                className={cn(
+                  "min-h-[300px] rounded-md border",
+                  isPresenting && "h-screen w-screen",
+                )}
                 id={slide.id}
-                slideWidth={slide.width}
-                slidesCount={items.length}
-              >
-                <div
-                  className={cn(
-                    `slide-container-${index}`,
-                    isPresenting && "h-screen w-screen",
-                  )}
-                >
-                  <PresentationEditor
-                    initialContent={slide}
-                    className={cn(
-                      "min-h-[300px] rounded-md border",
-                      isPresenting && "h-screen w-screen",
-                    )}
-                    id={slide.id}
-                    autoFocus={index === currentSlideIndex}
-                    slideIndex={index}
-                    isGenerating={isGeneratingPresentation}
-                    readOnly={isPresenting}
-                  />
-                </div>
-              </SlideContainer>
+                autoFocus={!readOnly && index === currentSlideIndex}
+                slideIndex={index}
+                isGenerating={isGeneratingPresentation}
+                readOnly={readOnly || isPresenting}
+              />
             </div>
-          ))}
-        </PlateController>
-      </SortableContext>
-    </DndContext>
+          </SlideContainer>
+        </div>
+      ))}
+    </PlateController>
+  );
+
+  return (
+    <>
+      <PresentModeHeader
+        presentationTitle={currentPresentationTitle}
+        showHeader={isPresenting && shouldShowExitHeader}
+      />
+
+      <ThinkingDisplay
+        thinking={usePresentationState.getState().presentationThinking}
+        isGenerating={isGeneratingPresentation}
+        title="AI is thinking about your presentation..."
+      />
+
+      {readOnly ? (
+        // Read-only mode: no drag-drop sorting
+        renderSlides()
+      ) : (
+        // Edit mode: with drag-drop sorting
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={items} strategy={verticalListSortingStrategy}>
+            {renderSlides()}
+          </SortableContext>
+        </DndContext>
+      )}
+    </>
   );
 };
+

@@ -147,7 +147,7 @@ export const usePresentationState = create<PresentationState>((set) => ({
   stockImageProvider: "unsplash",
   presentationStyle: "professional",
   modelProvider: "openai",
-  modelId: "llama3.1:8b",
+  modelId: "",
   slides: [], // Now holds the new slide object structure
   outlineThinking: "",
   presentationThinking: "",

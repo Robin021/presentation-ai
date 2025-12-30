@@ -4,6 +4,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import NextAuth, { type DefaultSession, type Session } from "next-auth";
 import { type Adapter } from "next-auth/adapters";
 import GoogleProvider from "next-auth/providers/google";
+import CredentialsProvider from "next-auth/providers/credentials";
 declare module "next-auth" {
   interface Session extends DefaultSession {
     user: {
@@ -92,9 +93,62 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
 
   adapter: PrismaAdapter(db) as Adapter,
   providers: [
-    GoogleProvider({
-      clientId: env.GOOGLE_CLIENT_ID,
-      clientSecret: env.GOOGLE_CLIENT_SECRET,
+    ...(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
+      ? [
+        GoogleProvider({
+          clientId: env.GOOGLE_CLIENT_ID,
+          clientSecret: env.GOOGLE_CLIENT_SECRET,
+        }),
+      ]
+      : []),
+    CredentialsProvider({
+      name: "Local Account",
+      credentials: {
+        email: { label: "Email", type: "email", placeholder: "admin@local.com" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) return null;
+
+        const email = credentials.email as string;
+        const password = credentials.password as string;
+
+        // Find user
+        let user = await db.user.findUnique({
+          where: { email },
+        });
+
+        // If user doesn't exist, create it (Auto-signup for local dev)
+        if (!user) {
+          user = await db.user.create({
+            data: {
+              email,
+              password, // Storing plaintext for local dev simplicity
+              name: email.split("@")[0],
+              role: "ADMIN", // Default to ADMIN for local user
+              hasAccess: true,
+              image: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
+            },
+          });
+        } else {
+          // If user exists, check password 
+          // (In a real app, use bcrypt.compare here)
+          if (user.password !== password) {
+            // Optional: Allow login if password remains same, or reject.
+            // For strictness:
+            return null;
+          }
+        }
+
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          image: user.image,
+          role: user.role,
+          hasAccess: user.hasAccess,
+        };
+      },
     }),
   ],
 });

@@ -48,6 +48,10 @@ export async function getImageFromUnsplash(
         ? "&orientation=portrait"
         : "&orientation=landscape";
   try {
+    if (!env.UNSPLASH_ACCESS_KEY) {
+      return { success: false, error: "Unsplash API key not configured" };
+    }
+
     // Search for images
     const response = await fetch(
       `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&page=1&per_page=1${orientationQuery}`,

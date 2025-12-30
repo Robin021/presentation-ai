@@ -305,16 +305,25 @@ export async function POST(req: Request) {
       .replace(/{TOTAL_SLIDES}/g, outline.length.toString())
       .replace(/{SEARCH_RESULTS}/g, searchResultsText);
 
+    console.log(`[PresentationAPI] Generating slides. Title="${title}", Slides=${outline.length}, ModelProvider=${modelProvider}, ModelId="${modelId}"`);
+
     const result = streamText({
       model,
       prompt: formattedPrompt,
     });
 
-    return result.toDataStreamResponse();
+    return result.toDataStreamResponse({
+      getErrorMessage: (error) => {
+        console.error("Stream error (Presentation):", error);
+        if (error instanceof Error) return error.message;
+        return String(error);
+      }
+    });
   } catch (error) {
     console.error("Error in presentation generation:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { error: "Failed to generate presentation slides" },
+      { error: `Failed to generate presentation slides: ${errorMessage}` },
       { status: 500 },
     );
   }

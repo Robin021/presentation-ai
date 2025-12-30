@@ -8,6 +8,11 @@ interface UseSlideChangeWatcherOptions {
    * @default 1000
    */
   debounceDelay?: number;
+  /**
+   * Whether the watcher is enabled. When false, no saves will be triggered.
+   * @default true
+   */
+  enabled?: boolean;
 }
 
 /**
@@ -17,7 +22,7 @@ interface UseSlideChangeWatcherOptions {
 export const useSlideChangeWatcher = (
   options: UseSlideChangeWatcherOptions = {},
 ) => {
-  const { debounceDelay = 1000 } = options;
+  const { debounceDelay = 1000, enabled = true } = options;
   const slides = usePresentationState((s) => s.slides);
   const isGeneratingPresentation = usePresentationState(
     (s) => s.isGeneratingPresentation,
@@ -26,13 +31,14 @@ export const useSlideChangeWatcher = (
 
   // Watch for changes to the slides array and trigger save
   useEffect(() => {
-    // Only save if we have slides and we're not generating
-    if (slides.length > 0) {
+    // Only save if enabled, we have slides, and we're not generating
+    if (enabled && slides.length > 0) {
       save();
     }
-  }, [slides, save, isGeneratingPresentation]);
+  }, [slides, save, isGeneratingPresentation, enabled]);
 
   return {
     saveImmediately,
   };
 };
+

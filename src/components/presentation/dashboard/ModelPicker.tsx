@@ -98,7 +98,7 @@ export function ModelPicker({
 
     if (currentValue === "openai") {
       return {
-        label: "GPT-4o-mini",
+        label: "OpenAI / Custom",
         icon: Bot,
       };
     }
@@ -200,9 +200,9 @@ export function ModelPicker({
               <div className="flex items-center gap-3">
                 <Bot className="h-4 w-4 flex-shrink-0" />
                 <div className="flex flex-col min-w-0">
-                  <span className="truncate text-sm">GPT-4o-mini</span>
+                  <span className="truncate text-sm">OpenAI / Custom Model</span>
                   <span className="text-xs text-muted-foreground truncate">
-                    Cloud-based AI model
+                    Uses configuration from .env
                   </span>
                 </div>
               </div>

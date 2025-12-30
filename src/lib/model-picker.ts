@@ -1,6 +1,7 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { type LanguageModelV1 } from "ai";
 import { createOllama } from "ollama-ai-provider";
+import { env } from "@/env";
 
 /**
  * Centralized model picker function for all presentation generation routes
@@ -27,6 +28,21 @@ export function modelPicker(
   }
 
   // Default to OpenAI
-  const openai = createOpenAI();
-  return openai("gpt-4o-mini") as unknown as LanguageModelV1;
+  const baseURL = env.OPENAI_BASE_URL;
+  const actualApiKey = env.OPENAI_API_KEY;
+  const apiKeyPreview = actualApiKey ? `${actualApiKey.substring(0, 15)}...` : "missing";
+
+  // Prioritize simple boolean checks for empty strings
+  const finalModelId = (modelId && modelId.trim() !== "")
+    ? modelId
+    : (env.OPENAI_MODEL || "gpt-4o-mini");
+
+  console.log(`[ModelPicker] Initializing OpenAI provider. BaseURL: ${baseURL || "default"}, Model: ${finalModelId}, API Key: ${apiKeyPreview}`);
+
+  const openai = createOpenAI({
+    baseURL: env.OPENAI_BASE_URL,
+    apiKey: env.OPENAI_API_KEY,
+  });
+
+  return openai(finalModelId) as unknown as LanguageModelV1;
 }

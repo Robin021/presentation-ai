@@ -111,9 +111,9 @@ export default function PresentationPage() {
       // Load all content from the database
       const presentationContent = presentationData.presentation
         ?.content as unknown as {
-        slides: PlateSlide[];
-        config: Record<string, unknown>;
-      };
+          slides: PlateSlide[];
+          config: Record<string, unknown>;
+        };
 
       // Set slides
       setSlides(presentationContent?.slides ?? []);
@@ -188,9 +188,14 @@ export default function PresentationPage() {
           void getCustomThemeById(themeId)
             .then((result) => {
               if (result.success && result.theme) {
-                // Set the theme with the custom theme data
-                const themeData = result.theme.themeData;
-                setTheme(themeId, themeData as unknown as ThemeProperties);
+                // Merge name and description into the theme data
+                const rawThemeData = result.theme.themeData as unknown as ThemeProperties;
+                const themeDataWithMeta: ThemeProperties = {
+                  ...rawThemeData,
+                  name: result.theme.name,
+                  description: result.theme.description ?? rawThemeData.description ?? "",
+                };
+                setTheme(themeId, themeDataWithMeta);
               } else {
                 // Fallback to default theme if custom theme not found
                 console.warn("Custom theme not found:", themeId);

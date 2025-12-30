@@ -15,7 +15,7 @@ const ITEMS_PER_PAGE = 10;
 
 export async function fetchPresentations(page = 0) {
   const session = await auth();
-  const userId = session?.user.id;
+  const userId = session?.user?.id;
 
   if (!userId) {
     return {
@@ -88,7 +88,7 @@ export async function fetchPublicPresentations(page = 0) {
 
 export async function fetchUserPresentations(userId: string, page = 0) {
   const session = await auth();
-  const currentUserId = session?.user.id;
+  const currentUserId = session?.user?.id;
 
   const skip = page * ITEMS_PER_PAGE;
 

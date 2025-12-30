@@ -13,11 +13,16 @@ export interface PresentationParagraphElementProps {
 export const PresentationParagraphElement = withRef<
   typeof PlateElement,
   PresentationParagraphElementProps
->(({ className, children, ...props }, ref) => {
+>(({ className, children, element, ...props }, ref) => {
+  // Use 'div' when element has listStyleType to avoid invalid HTML nesting
+  // (ul/ol cannot be a descendant of p)
+  const hasListStyle = element && "listStyleType" in element && element.listStyleType;
+
   return (
     <PlateElement
       ref={ref}
-      as="p"
+      as={hasListStyle ? "div" : "p"}
+      element={element}
       className={cn(
         "presentation-paragraph m-0 px-0 py-1 text-base",
         className,
@@ -30,3 +35,4 @@ export const PresentationParagraphElement = withRef<
 });
 
 PresentationParagraphElement.displayName = "PresentationParagraphElement";
+
