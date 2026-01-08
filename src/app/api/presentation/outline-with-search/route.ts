@@ -52,7 +52,8 @@ Example:
 - Supporting detail or example
 - Practical application or takeaway
 
-Remember: Use web search strategically to enhance the outline with current, relevant information.`;
+## CRITICAL INSTRUCTION:
+After you receive the search results, you MUST immediately generate the outline using the format above. Do NOT just call tools without producing the final outline. The outline text output is REQUIRED.`;
 
 export async function POST(req: Request) {
   try {
@@ -120,9 +121,37 @@ export async function POST(req: Request) {
       },
       maxSteps: 5, // Allow up to 5 tool calls
       toolChoice: "auto", // Let the model decide when to use tools
+      onStepFinish: (step) => {
+        console.log("----------------------------------------");
+        console.log("[Outline] Step finished!");
+        console.log("[Outline] Step type:", step.stepType);
+        console.log("[Outline] Tool calls:", step.toolCalls?.length ?? 0);
+        if (step.toolCalls && step.toolCalls.length > 0) {
+          step.toolCalls.forEach((tc, i) => {
+            console.log(`[Outline] Tool call ${i}:`, tc.toolName, JSON.stringify(tc.args));
+          });
+        }
+        console.log("[Outline] Tool results:", step.toolResults?.length ?? 0);
+        if (step.toolResults && step.toolResults.length > 0) {
+          step.toolResults.forEach((tr: any, i: number) => {
+            const result = tr.result;
+            console.log(`[Outline] Tool result ${i}:`, typeof result === 'string' ? result.substring(0, 200) + '...' : result);
+          });
+        }
+        console.log("----------------------------------------");
+      },
       onFinish: (result) => {
-        console.log("[Outline] Stream finished. Output length:", result.text.length);
-        console.log("[Outline] Full Output:", result.text);
+        console.log("[Outline] ========== STREAM FINISHED ==========");
+        console.log("[Outline] Text length:", result.text.length);
+        console.log("[Outline] Text (raw):", JSON.stringify(result.text));
+        console.log("[Outline] Text (first 500 chars):", result.text.substring(0, 500));
+        console.log("[Outline] Total steps:", result.steps?.length ?? 0);
+        // Log each step's output
+        result.steps?.forEach((step, i) => {
+          console.log(`[Outline] Step ${i} text length:`, step.text?.length ?? 0);
+          console.log(`[Outline] Step ${i} text:`, step.text?.substring(0, 200));
+        });
+        console.log("[Outline] =====================================");
       },
     });
 

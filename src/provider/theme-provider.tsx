@@ -10,23 +10,35 @@ import {
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 
+import * as React from "react";
+import { cn } from "@/lib/utils";
+
 export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
   return <NextThemesProvider {...props}>{children}</NextThemesProvider>;
 }
 
-export function ThemeToggle() {
-  const { theme, setTheme } = useTheme();
+// ... imports remain the same
 
-  const toggleTheme = () => {
-    setTheme(theme === "light" ? "dark" : "light");
-  };
+export const ThemeToggle = React.forwardRef<
+  HTMLButtonElement,
+  React.ComponentPropsWithoutRef<typeof Button>
+>(({ className, onClick, ...props }, ref) => {
+  const { theme, setTheme } = useTheme();
 
   return (
     <Button
+      ref={ref}
       asChild
       variant="outline"
-      className="flex w-full items-center justify-between gap-2 text-primary cursor-pointer"
-      onClick={toggleTheme}
+      className={cn(
+        "flex w-full items-center justify-between gap-2 text-primary cursor-pointer",
+        className,
+      )}
+      onClick={(e) => {
+        setTheme(theme === "light" ? "dark" : "light");
+        onClick?.(e);
+      }}
+      {...props}
     >
       <div>
         <span>Change Theme</span>
@@ -35,7 +47,7 @@ export function ThemeToggle() {
           <Moon className="hidden h-4 w-4 rotate-0 transition-all dark:block" />
           <Switch
             checked={theme === "dark"}
-            onCheckedChange={toggleTheme}
+            onCheckedChange={() => setTheme(theme === "light" ? "dark" : "light")}
             className="ml-2 pointer-events-none"
           />
         </div>
@@ -43,4 +55,5 @@ export function ThemeToggle() {
       </div>
     </Button>
   );
-}
+});
+ThemeToggle.displayName = "ThemeToggle";
