@@ -148,12 +148,12 @@ export function PresentationGenerationManager() {
                   usePresentationState.getState().slides.map((s) =>
                     s.id === slideId
                       ? {
-                          ...s,
-                          rootImage: {
-                            query: rootImage.query,
-                            url: result.image.url,
-                          },
-                        }
+                        ...s,
+                        rootImage: {
+                          query: rootImage.query,
+                          url: result.image.url,
+                        },
+                      }
                       : s,
                   ),
                 );
@@ -223,9 +223,14 @@ export function PresentationGenerationManager() {
               parsedResult = invocation.result;
             }
 
+            // Handle both array format (Serper) and object format (Tavily: { results: [...] })
+            const resultsArray = Array.isArray(parsedResult)
+              ? parsedResult
+              : (parsedResult?.results || []);
+
             searchResults.push({
               query,
-              results: parsedResult?.results || [],
+              results: resultsArray,
             });
           }
         }
@@ -531,12 +536,12 @@ export function PresentationGenerationManager() {
                   slides.map((s) =>
                     s.id === slideId
                       ? {
-                          ...s,
-                          rootImage: {
-                            ...s.rootImage!,
-                            url: result.image.url,
-                          },
-                        }
+                        ...s,
+                        rootImage: {
+                          ...s.rootImage!,
+                          url: result.image.url,
+                        },
+                      }
                       : s,
                   ),
                 );

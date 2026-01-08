@@ -54,11 +54,11 @@ export function UserDetail() {
       )}
       {(session.status === "loading" ||
         session.status === "unauthenticated") && (
-        <div className="grid gap-0.5 px-2 py-1.5">
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-2 w-full" />
-        </div>
-      )}
+          <div className="grid gap-0.5 px-2 py-1.5">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-2 w-full" />
+          </div>
+        )}
     </div>
   );
 }
@@ -102,37 +102,37 @@ export default function SideBarDropdown({
         <DropdownMenuSeparator />
 
         <DropdownMenuGroup className="flex flex-col gap-2">
-          <DropdownMenuItem asChild>
-            <Button variant="outline" className="w-full">
-              <Link
-                href={userId ? `/user/${userId}` : ""}
-                className="flex h-full w-full items-center justify-center p-2"
-              >
-                <User className="mr-2 h-4 w-4" />
-                <span>Profile</span>
-              </Link>
-            </Button>
+          <DropdownMenuItem asChild className="cursor-pointer">
+            <Link
+              href={userId ? `/user/${userId}` : ""}
+              className="flex w-full items-center p-2 font-medium"
+            >
+              <User className="mr-2 h-4 w-4" />
+              <span>Profile</span>
+            </Link>
           </DropdownMenuItem>
 
-          <DropdownMenuItem asChild>
-            <Button
-              variant={isLoggingOut ? "outlineLoading" : "outline"}
-              className="w-full"
-              disabled={isLoggingOut}
-              onClick={async () => {
-                setIsLoggingOut(true);
-                document.cookie.split(";").forEach((cookie) => {
-                  const [name] = cookie.split("=");
-                  if (name) {
-                    document.cookie = `${name.trim()}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-                  }
-                });
-                await signOut();
-              }}
-            >
+          <DropdownMenuItem
+            className="flex w-full cursor-pointer items-center p-2 font-medium text-destructive focus:text-destructive"
+            disabled={isLoggingOut}
+            onSelect={async (event) => {
+              event.preventDefault();
+              setIsLoggingOut(true);
+              document.cookie.split(";").forEach((cookie) => {
+                const [name] = cookie.split("=");
+                if (name) {
+                  document.cookie = `${name.trim()}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+                }
+              });
+              await signOut();
+            }}
+          >
+            {isLoggingOut ? (
+              <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            ) : (
               <LogOut className="mr-2 h-4 w-4" />
-              <span>Log out</span>
-            </Button>
+            )}
+            <span>Log out</span>
           </DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>

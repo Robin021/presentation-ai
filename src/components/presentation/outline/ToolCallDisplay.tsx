@@ -48,18 +48,19 @@ export function ToolCallDisplay() {
         <CollapsibleContent className="space-y-2 pt-2 px-4">
           {searchResults.map((searchItem, index) => {
             // Convert our search results to the format expected by the Searched component
+            // Handle both Serper format (link, snippet) and Tavily format (url, content)
             const formattedResults: SearchResult[] = Array.isArray(
               searchItem.results,
             )
               ? searchItem.results.map((result: unknown) => {
-                  const searchResult = result as Record<string, unknown>;
-                  return {
-                    url: (searchResult.url as string) || "",
-                    title: (searchResult.title as string) || "No title",
-                    published_date: "", // Not available in our format
-                    content: (searchResult.content as string) || "No content",
-                  };
-                })
+                const searchResult = result as Record<string, unknown>;
+                return {
+                  url: (searchResult.url as string) || (searchResult.link as string) || "",
+                  title: (searchResult.title as string) || "No title",
+                  published_date: "", // Not available in our format
+                  content: (searchResult.content as string) || (searchResult.snippet as string) || "No content",
+                };
+              })
               : [];
 
             return (
