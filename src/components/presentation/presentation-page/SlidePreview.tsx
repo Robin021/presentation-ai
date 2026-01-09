@@ -12,6 +12,7 @@ import { usePresentationState } from "@/states/presentation-state";
 import PresentationEditorStaticView from "../editor/presentation-editor-static";
 import { type PlateSlide } from "../utils/parser";
 import { SlidePreviewCard } from "./SlidePreviewCard";
+import { InfographicModal } from "../infographic/InfographicModal";
 
 interface SlidePreviewProps {
   onSlideClick?: (index: number) => void;
@@ -110,7 +111,10 @@ function SlidePreviewBase({
                 <div className="h-max max-h-[90vh] overflow-auto">
                   <div className="flex flex-col space-y-4 p-4">
                     <div className="mb-2 flex items-center justify-between">
-                      <h2 className="text-sm font-semibold">Slides</h2>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-sm font-semibold">Slides</h2>
+                        <InfographicModal />
+                      </div>
 
                       <Button
                         onClick={() => setIsSidebarCollapsed(true)}
