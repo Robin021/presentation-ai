@@ -22,6 +22,10 @@ export default async function RootLayout({
     <TanStackQueryProvider>
       <NextAuthProvider>
         <html lang="en" suppressHydrationWarning>
+          <head>
+            {/* AntV Infographic CDN - Required for canvas-based infographic rendering */}
+            <script src="https://unpkg.com/@antv/infographic@0.2.7/dist/infographic.min.js" defer></script>
+          </head>
           <body className={`${inter.className} antialiased`}>
             <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
               {children}

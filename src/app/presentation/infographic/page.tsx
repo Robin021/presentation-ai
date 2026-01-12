@@ -2,7 +2,9 @@
 
 import { StreamingInfographic } from "@/components/infographic-renderer";
 import { InfographicPresentMode } from "@/components/infographic-present";
+import { InfographicHistory } from "@/components/infographic-history";
 import { exportInfographicToHTML, exportInfographicToPDF, exportInfographicToPPT } from "@/lib/export-infographic";
+import { saveSession, InfographicSession } from "@/lib/infographic-storage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,10 +26,10 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { INFOGRAPHIC_TEMPLATE_CATEGORIES } from "@/lib/infographic-constants";
 import { useChat } from "ai/react";
-import { ArrowLeft, Copy, Download, Globe, Loader2, Sparkles, Presentation } from "lucide-react";
+import { ArrowLeft, Copy, Download, Globe, Loader2, Sparkles, Presentation, History } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState, useMemo } from "react";
+import { useState, useRef, useEffect, Suspense, useMemo, useCallback } from 'react';
 import { toast } from "sonner";
 
 function InfographicPageContent() {
@@ -45,6 +47,49 @@ function InfographicPageContent() {
     const [isPresentMode, setIsPresentMode] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
     const [exportProgress, setExportProgress] = useState({ current: 0, total: 0 });
+    const [historyOpen, setHistoryOpen] = useState(false);
+    const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(undefined);
+
+    // LocalStorage keys
+    const STORAGE_KEY = 'infographic_last_session';
+
+    // Load from localStorage on mount
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                const session = JSON.parse(saved);
+                if (session.dsl && Date.now() - session.timestamp < 24 * 60 * 60 * 1000) { // 24 hours expiry
+                    setFinalDsl(session.dsl);
+                    setTopic(session.topic || '');
+                    toast.info('已恢复上次生成的内容');
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to load saved session:', e);
+        }
+    }, []);
+
+    // Save to localStorage when finalDsl changes
+    useEffect(() => {
+        if (finalDsl) {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                    dsl: finalDsl,
+                    topic: topic,
+                    timestamp: Date.now()
+                }));
+            } catch (e) {
+                console.warn('Failed to save session:', e);
+            }
+        }
+    }, [finalDsl, topic]);
+
+    // Track current state for onFinish callback (avoids stale closures)
+    const stateRef = useRef({ topic, description, templateHint, theme });
+    useEffect(() => {
+        stateRef.current = { topic, description, templateHint, theme };
+    }, [topic, description, templateHint, theme]);
 
     // Use streaming chat
     const { messages, append, isLoading, setMessages } = useChat({
@@ -52,12 +97,22 @@ function InfographicPageContent() {
         onFinish: (message) => {
             // Extract final DSL from the completed message
             // For multi-slide content, we want to keep ALL slides
-            const cleanDsl = message.content
-                .replace(/```plain\n?/g, "")
-                .replace(/```\n?/g, "")
-                .trim();
+            const cleanDsl = cleanMarkdown(message.content);
 
             setFinalDsl(cleanDsl);
+
+            const { topic, description, templateHint, theme } = stateRef.current;
+
+            // Save to history
+            const savedSession = saveSession({
+                topic: topic || "未命名主题",
+                dsl: cleanDsl,
+                description,
+                templateHint,
+                theme,
+            });
+            setCurrentSessionId(savedSession.id);
+
             toast.success("信息图生成完成!");
         },
         onError: (error) => {
@@ -78,9 +133,14 @@ function InfographicPageContent() {
             return;
         }
 
-        // Reset state
+        // Reset state and clear saved session for fresh generation
         setFinalDsl(null);
         setMessages([]);
+        try {
+            localStorage.removeItem(STORAGE_KEY);
+        } catch (e) {
+            // Ignore localStorage errors
+        }
 
         // Send request with all options
         await append(
@@ -153,6 +213,19 @@ function InfographicPageContent() {
         setIsPresentMode(true);
     };
 
+    // Handle loading a session from history
+    const handleSelectSession = useCallback((session: InfographicSession) => {
+        setTopic(session.topic);
+        setDescription(session.description || "");
+        setTemplateHint(session.templateHint || "");
+        if (session.theme) {
+            setTheme(session.theme as any);
+        }
+        setFinalDsl(session.dsl);
+        setCurrentSessionId(session.id);
+        setMessages([]);
+    }, [setMessages]);
+
     const [editingSlideIndex, setEditingSlideIndex] = useState<number | null>(null);
 
     // ... existing handleGenerate ...
@@ -208,7 +281,14 @@ function InfographicPageContent() {
     // Parse slides from finalDsl
     const slides = useMemo(() => {
         if (!finalDsl) return [];
-        return finalDsl.split('---SLIDE---').map(s => s.trim()).filter(Boolean);
+        return cleanMarkdown(finalDsl).split('---SLIDE---')
+            .map(s => s.trim())
+            .filter(Boolean)
+            .map(s => {
+                // Ensure each slide starts with "infographic "
+                const start = s.indexOf("infographic ");
+                return start >= 0 ? s.substring(start) : s;
+            });
     }, [finalDsl]);
 
     const displayDsl = finalDsl || streamingContent;
@@ -228,12 +308,16 @@ function InfographicPageContent() {
                     <div className="flex-1" />
                     <h1 className="text-lg font-semibold">AI 信息图生成器</h1>
                     <div className="flex-1" />
+                    <Button variant="ghost" size="sm" onClick={() => setHistoryOpen(true)}>
+                        <History className="mr-2 h-4 w-4" />
+                        历史
+                    </Button>
                 </div>
             </div>
 
             {/* Main Content */}
-            <div className="mx-auto max-w-7xl px-6 py-8">
-                <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+            <div className="mx-auto px-6 py-8" style={{ maxWidth: '1800px' }}>
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
                     {/* Left Panel: Controls */}
                     <div className="space-y-6 lg:col-span-1 lg:sticky lg:top-8 self-start">
                         <div className="rounded-xl border bg-card p-6 shadow-sm">
@@ -299,7 +383,7 @@ function InfographicPageContent() {
                                             }
                                         }}
                                         min={1}
-                                        max={10}
+                                        max={20}
                                         step={1}
                                         disabled={isLoading}
                                         className="py-2"
@@ -412,7 +496,7 @@ function InfographicPageContent() {
                     </div>
 
                     {/* Right Panel: Preview */}
-                    <div className="lg:col-span-2">
+                    <div className="lg:col-span-3">
                         <div className="rounded-xl border bg-card shadow-sm">
                             <div className="flex items-center justify-between border-b px-6 py-4">
                                 <h2 className="font-semibold">预览</h2>
@@ -487,6 +571,14 @@ function InfographicPageContent() {
                         onClose={() => setIsPresentMode(false)}
                     />
                 )}
+
+                {/* History Drawer */}
+                <InfographicHistory
+                    open={historyOpen}
+                    onOpenChange={setHistoryOpen}
+                    onSelect={handleSelectSession}
+                    currentSessionId={currentSessionId}
+                />
             </div>
         </div>
     );
@@ -499,6 +591,24 @@ function LoadingFallback() {
         </div>
     );
 }
+
+// Helper to clean Markdown fences
+const cleanMarkdown = (text: string) => {
+    let clean = text
+        .replace(/```(?:json|plain|dsl|infographic-dsl)?\s*\n?/gi, "") // Remove opening fence
+        .replace(/```\s*$/g, "") // Remove closing fence
+        .trim();
+
+    // Aggressively strip "plain", "json", etc. if they remain at the start
+    // (Common issue if AI omits backticks or if regex misses)
+    // We use a regex that matches these words followed by whitespace at the very start
+    const junkPrefixRegex = /^(plain|json|dsl|infographic-dsl|markdown|text)\s+/i;
+    while (junkPrefixRegex.test(clean)) {
+        clean = clean.replace(junkPrefixRegex, '').trim();
+    }
+
+    return clean;
+};
 
 export default function InfographicPage() {
     return (

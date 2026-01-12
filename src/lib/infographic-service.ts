@@ -119,6 +119,10 @@ theme
 - Strict indentation (2 spaces) INSIDE data/theme blocks
 - data and theme MUST be at root level (no indentation)
 - All icons with mdi/ prefix
+- **ENRICH CONTENT**: Use detailed descriptions and specific numbers. Avoid empty or generic text.
+- **NO COMMAS**: Numeric values (e.g. \`value 1000\`) MUST NOT contain commas. Write 1000, not 1,000.
+- **NORMALIZE SCALES**: Do not mix very small values (e.g. 5) with very large values (e.g. 50000) in the same chart.
+- **PALETTE SAFETY**: Do NOT use White (#FFFFFF) in the palette. It will be invisible. Use #CCCCCC or colors.
 `;
 
 /**
@@ -208,7 +212,7 @@ function fixDslStructure(dsl: string): string {
       if (trimmed.startsWith('- ')) {
         items.push(trimmed);
       } else if (relativeIndent > 0 && items.length > 0) {
-        items[items.length - 1] += '\n    ' + trimmed;
+        items[items.length - 1] += '\n      ' + trimmed;
       } else if (trimmed.startsWith('value ') || trimmed.startsWith('label ')) {
         items.push('- ' + trimmed);
       } else if (trimmed) {
@@ -307,6 +311,13 @@ ${ALL_VALID_TEMPLATES.join("\n")}
 3. For EACH slide, select the most appropriate template from the VALID list
 4. Extract key data points for each slide
 
+**Variety Rules**:
+- **DIVERSIFY TEMPLATES**: Do not use the same template category (e.g. "list") for consecutive slides.
+- **UNPREDICTABLE FLOW**: Do NOT follow a standard "Intro -> List -> Chart" structure. Surprise the audience. Start with a Chart or Comparison.
+- **MAXIMIZE COVERAGE**: Ensure at least 3-4 distinct categories (Sequence, Compare, Quadrant, Chart) are used in every presentation.
+- **PRIORITIZE COMPLEXITY**: Use "chart-*" and "compare-*" and "quadrant-*" as much as possible. Avoid simple "list-*" unless necessary.
+- **VISUAL INTEREST**: Every slide must look different from the previous one.
+
 **Output (JSON)**:
 {
   "slides": [
@@ -396,17 +407,23 @@ theme
 2. \`title\` and \`items\` MUST be inside \`data\` block (2-space indent)
 3. Each item in \`items\` MUST start with \`- label\`
 4. Icons MUST use \`mdi/\` prefix
-5. Output ONLY the DSL in \`\`\`plain block, NO explanations
-`;
+5. **RICH DATA**: Use \`desc\` fields for 1-2 sentences of context.
+6. **FULL FIELDS**: Use \`icon\` and \`value\` whenever possible to enhance visuals.
+7. **NO COMMAS**: Numeric values MUST NOT contain commas. e.g. \`value 10000\`.
+8. **NORMALIZE SCALES**: For chart templates, ensure all \`value\` fields are on a consistent scale (e.g., all in thousands, millions, or percentages) and clearly indicate the unit in the \`desc\` field of the data block if applicable.
+9. **PALETTE SAFETY**: Do NOT use White (#FFFFFF) in the palette. It will be invisible.
+10. **BACKGROUND**: You MAY set \`background #RRGGBB\` inside the \`theme\` block. If used, ensure palette contrasts with it.
+11. Output ONLY the DSL in \`\`\`plain block, NO explanations
+  `;
 
 async function researchStep(topic: string, description: string): Promise<string> {
-  console.log(`[Research Mode] Researching: ${topic}`);
+  console.log(`[Research Mode]Researching: ${topic} `);
   const model = modelPicker("openai");
 
   const queryResult = await generateText({
     model,
     system: "You are a search query generator. Output ONLY a concise search query.",
-    prompt: `Topic: ${topic}\nDetails: ${description}`,
+    prompt: `Topic: ${topic} \nUser Description: ${description} \n\nGoal: Generate a targeted search query. CRITICAL: Use the User Description to refine the query if provided. Find stats/trends/comparisons.`,
   });
 
   const searchQuery = queryResult.text.trim().replace(/^"|"$/g, '');
@@ -416,7 +433,7 @@ async function researchStep(topic: string, description: string): Promise<string>
     return "No external data found.";
   }
 
-  return searchResults.map(r => `- ${r.title}: ${r.snippet}`).join("\n");
+  return searchResults.map(r => `- ${r.title}: ${r.snippet} `).join("\n");
 }
 
 async function planStep(
@@ -440,7 +457,7 @@ async function planStep(
       })),
     }),
     system: PLANNING_SYSTEM_PROMPT.replace('{slideCount}', slideCount.toString()),
-    prompt: `Topic: ${topic}\nUser Request: ${description}\nResearch:\n${researchData}\n\nPlan ${slideCount} slides.${templateHint ? `\nPreferred category: ${templateHint}` : ""}`,
+    prompt: `Topic: ${topic} \nUser Request: ${description} \nResearch: \n${researchData} \n\nPlan ${slideCount} slides.${templateHint ? `\nPreferred category: ${templateHint}` : ""} `,
   });
 
   return object.slides;
@@ -451,20 +468,20 @@ async function generateStep(plan: any, theme: string = "default") {
 
   let themeInstructions = "";
   if (theme === "porsche") {
-    themeInstructions = `**Theme**: Porsche - fontFamily "Porsche Next TT", palette #E60012 #000000 #FFFFFF`;
+    themeInstructions = `** Theme **: Porsche - fontFamily "Porsche Next TT", palette #E60012 #000000 #FFFFFF`;
   } else if (theme === "tech") {
-    themeInstructions = `**Theme**: Tech blue - palette #3b82f6 #8b5cf6 #60a5fa`;
+    themeInstructions = `** Theme **: Tech blue - palette #3b82f6 #8b5cf6 #60a5fa`;
   } else if (theme === "nature") {
-    themeInstructions = `**Theme**: Nature green - palette #22c55e #10b981 #84cc16`;
+    themeInstructions = `** Theme **: Nature green - palette #22c55e #10b981 #84cc16`;
   }
 
   const { text } = await generateText({
     model,
     system: GENERATION_SYSTEM_PROMPT,
-    prompt: `Template: "${plan.templateName}"\nTitle: ${plan.titleSuggestion}\nData: ${JSON.stringify(plan.dataPoints)}\n${themeInstructions}\n${plan.category === 'compare' ? 'CRITICAL: TWO root nodes for comparison.\n' : ''}`,
+    prompt: `Template: "${plan.templateName}"\nTitle: ${plan.titleSuggestion} \nData: ${JSON.stringify(plan.dataPoints)} \n${themeInstructions} \n${plan.category === 'compare' ? 'CRITICAL: TWO root nodes for comparison.\n' : ''} `,
   });
 
-  return text.replace(/```plain\n?/g, "").replace(/```\n?/g, "").trim();
+  return text.replace(/```plain\n ? /g, "").replace(/```\n?/g, "").trim();
 }
 
 async function* generateResearchMode(options: InfographicGenerateOptions): AsyncGenerator<string, void, unknown> {
@@ -513,11 +530,11 @@ export async function generateInfographicLegacy(topic: string, description: stri
 // ===== EDIT SLIDE FUNCTION =====
 
 const EDIT_SLIDE_SYSTEM_PROMPT = `
-You are an expert AntV Infographic editor. Your task is to modify an existing infographic slide based on user instructions.
+You are an expert AntV Infographic editor.Your task is to modify an existing infographic slide based on user instructions.
 
 ## Rules
-1. **Targeted Modification**: Focus strictly on what the user wants to change.
-2. **Data Updates Permitted**: If the user asks to change data, text, or values, you MUST update the \`items\` array accordingly.
+1. ** Targeted Modification **: Focus strictly on what the user wants to change.
+2. ** Data Updates Permitted **: If the user asks to change data, text, or values, you MUST update the \`items\` array accordingly.
 3. **Template Flexibility**: If the user asks for a different chart type (e.g. "change to pie chart"), you SHOULD change the template name (e.g. \`chart-pie-...\`).
 4. **Valid DSL**: Output must be valid AntV Infographic DSL syntax.
 5. **No Explanations**: Output ONLY the modified DSL in \`\`\`plain block.
@@ -540,6 +557,13 @@ theme
 - **"Change title"**: Update \`title\` in data block.
 - **"Change color"**: Update \`palette\` in theme block.
 - **"Change style/chart"**: Change the \`infographic <template-name>\` line to a more suitable template.
+
+## DATA COMPATIBILITY RULES (CRITICAL)
+6. **Chart Templates** (\`chart-*\`): MUST have \`value\` (number) for every item. If original data has no numbers, you **MUST** generate estimated or placeholder values (e.g., \`value 10\`). NEVER output a chart template without \`value\` fields.
+7. **Adhere to Template capabilities**: Do not use chart templates for purely text data unless you can transform it.
+
+## VALID TEMPLATES (You MUST choose from this list ONLY)
+${ALL_VALID_TEMPLATES.join("\\n")}
 
 Output ONLY the complete modified DSL.
 `;
