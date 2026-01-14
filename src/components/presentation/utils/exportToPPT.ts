@@ -94,6 +94,8 @@ export class PlateJSToPPTXConverter {
   private readonly SLIDE_WIDTH = 10;
   private readonly SLIDE_HEIGHT = 5.625;
   private readonly MARGIN = 0.5;
+  private readonly COLUMN_GAP = 0.15; // Gap between columns
+  private readonly ELEMENT_SPACING = 0.1; // Spacing between elements
 
   // Theme defaults (mirror src/styles/presentation.css light variables)
   private THEME: ThemeColors = {
@@ -349,8 +351,11 @@ export class PlateJSToPPTXConverter {
         false,
       );
       currentY += elementHeight;
+      // Add spacing between elements
+      currentY += this.ELEMENT_SPACING;
 
-      if (currentY >= area.y + area.h) break;
+      // Check with buffer if exceeding boundary
+      if (currentY >= area.y + area.h - 0.1) break;
     }
   }
 
@@ -372,7 +377,7 @@ export class PlateJSToPPTXConverter {
           x,
           y,
           width,
-          32,
+          24,
           measureOnly,
         );
       case "h2":
@@ -381,7 +386,7 @@ export class PlateJSToPPTXConverter {
           x,
           y,
           width,
-          28,
+          20,
           measureOnly,
         );
       case "h3":
@@ -390,7 +395,7 @@ export class PlateJSToPPTXConverter {
           x,
           y,
           width,
-          24,
+          18,
           measureOnly,
         );
       case "h4":
@@ -399,7 +404,7 @@ export class PlateJSToPPTXConverter {
           x,
           y,
           width,
-          20,
+          16,
           measureOnly,
         );
       case "h5":
@@ -408,7 +413,7 @@ export class PlateJSToPPTXConverter {
           x,
           y,
           width,
-          18,
+          14,
           measureOnly,
         );
       case "h6":
@@ -417,7 +422,7 @@ export class PlateJSToPPTXConverter {
           x,
           y,
           width,
-          16,
+          12,
           measureOnly,
         );
       case "p":
@@ -577,11 +582,19 @@ export class PlateJSToPPTXConverter {
     measureOnly = false,
   ): number {
     const text = this.extractText(element);
-    if (!text.trim()) return 0.2;
-    if (measureOnly) return 0.8;
+    if (!text.trim()) return 0.15;
+
+    // Dynamic height calculation with reasonable limits
+    const fontSize = 11;
+    const charsPerInch = 18; // More chars per inch with smaller font
+    const estimatedLines = Math.ceil(text.length / (width * charsPerInch));
+    const lineHeight = 0.2;
+    const calculatedHeight = Math.max(0.3, Math.min(1.5, estimatedLines * lineHeight));
+
+    if (measureOnly) return calculatedHeight;
 
     const runs = this.extractTextRuns(element);
-    const textOptions = this.getTextOptions(element, 14);
+    const textOptions = this.getTextOptions(element, fontSize);
     // Decide paragraph/body text color: force dark text on light backgrounds
     const darkFallback = (this.THEME.secondary || "1F2937").replace("#", "");
     const paragraphColor = this.isLightColor(this.THEME.background)
@@ -598,10 +611,10 @@ export class PlateJSToPPTXConverter {
         x,
         y,
         w: width,
-        h: 0.8,
+        h: calculatedHeight,
         ...textOptions,
         align: "left",
-        fit: "resize",
+        fit: "shrink",
         wrap: true,
       });
     } else {
@@ -609,15 +622,15 @@ export class PlateJSToPPTXConverter {
         x,
         y,
         w: width,
-        h: 0.8,
+        h: calculatedHeight,
         ...textOptions,
         align: "left",
-        fit: "resize",
+        fit: "shrink",
         wrap: true,
       });
     }
 
-    return 0.8;
+    return calculatedHeight;
   }
 
   private async addBullets(
@@ -634,8 +647,10 @@ export class PlateJSToPPTXConverter {
       3,
       Math.max(1, bullets.length <= 2 ? bullets.length : 3),
     );
-    const columnWidth = width / columns;
-    const gap = 0.2;
+    const gap = this.COLUMN_GAP;
+    const totalGapWidth = gap * (columns - 1);
+    const columnWidth = (width - totalGapWidth) / columns;
+    const itemHeight = 1.3; // Row height for each bullet row
 
     let maxHeight = 0;
 
@@ -645,7 +660,7 @@ export class PlateJSToPPTXConverter {
       const rowIndex = Math.floor(i / columns);
 
       const bulletX = x + columnIndex * (columnWidth + gap);
-      const bulletY = y + rowIndex * 1.5;
+      const bulletY = y + rowIndex * itemHeight;
 
       if (!measureOnly) {
         // Add bullet number box
@@ -674,35 +689,40 @@ export class PlateJSToPPTXConverter {
         // Add bullet content
         const bulletRuns = this.extractTextRuns(bullet);
         const bulletText = this.extractText(bullet);
+        const contentWidth = columnWidth - 0.55; // Space after number box
         if (bulletRuns.length > 0) {
           this.currentSlide?.addText(bulletRuns, {
             x: bulletX + 0.5,
             y: bulletY,
-            w: columnWidth - 0.6,
-            h: 1.2,
-            fontSize: 12,
+            w: contentWidth,
+            h: itemHeight - 0.1,
+            fontSize: 10,
             valign: "top",
             align: "left",
             color: this.THEME.text,
+            fit: "shrink",
+            wrap: true,
           });
         } else {
           this.currentSlide?.addText(bulletText, {
             x: bulletX + 0.5,
             y: bulletY,
-            w: columnWidth - 0.6,
-            h: 1.2,
-            fontSize: 12,
+            w: contentWidth,
+            h: itemHeight - 0.1,
+            fontSize: 10,
             valign: "top",
             align: "left",
             color: this.THEME.text,
+            fit: "shrink",
+            wrap: true,
           });
         }
       }
 
-      maxHeight = Math.max(maxHeight, (rowIndex + 1) * 1.5);
+      maxHeight = Math.max(maxHeight, (rowIndex + 1) * itemHeight);
     }
 
-    return maxHeight + 0.5;
+    return maxHeight + 0.3;
   }
 
   private async addColumns(
@@ -715,13 +735,20 @@ export class PlateJSToPPTXConverter {
     const columns = element.children.filter(
       (child) => (child as TColumnElement).type === "column",
     );
+
+    // Calculate gap and available width
+    const gap = this.COLUMN_GAP;
+    const totalGapWidth = gap * Math.max(0, columns.length - 1);
+    const availableWidth = width - totalGapWidth;
+
     let currentX = x;
     let maxHeight = 0;
 
-    for (const column of columns) {
-      const columnElement = column as TColumnElement;
-      const columnWidth =
-        width * (parseFloat(columnElement.width || "50%") / 100);
+    for (let i = 0; i < columns.length; i++) {
+      const columnElement = columns[i] as TColumnElement;
+      // Use provided width or distribute equally
+      const rawPercent = parseFloat(columnElement.width || String(100 / columns.length));
+      const columnWidth = availableWidth * (rawPercent / 100);
 
       let columnHeight = 0;
       let columnY = y;
@@ -731,7 +758,7 @@ export class PlateJSToPPTXConverter {
           child as PlateNode,
           currentX,
           columnY,
-          columnWidth - 0.1,
+          columnWidth - 0.05, // Small padding
           measureOnly,
         );
         columnHeight += childHeight;
@@ -739,7 +766,7 @@ export class PlateJSToPPTXConverter {
       }
 
       maxHeight = Math.max(maxHeight, columnHeight);
-      currentX += columnWidth;
+      currentX += columnWidth + gap;
     }
 
     return maxHeight;
@@ -803,6 +830,16 @@ export class PlateJSToPPTXConverter {
       ),
     );
 
+    const arrowWidth = 0.8;
+    const arrowHeight = 0.5;
+    const maxItemHeight = 0.8; // Cap max height to prevent overflow
+    const contentWidth = width - arrowWidth - 0.8;
+    const itemSpacing = 0.1;
+
+    // Calculate available height per item
+    const availableHeight = this.SLIDE_HEIGHT - y - 0.5;
+    const maxHeightPerItem = Math.min(maxItemHeight, availableHeight / items.length - itemSpacing);
+
     let currentY = y;
 
     for (let i = 0; i < items.length; i++) {
@@ -810,29 +847,33 @@ export class PlateJSToPPTXConverter {
         | TArrowListItemElement
         | TVisualizationListItemElement;
 
+      const itemText = this.extractText(item);
+      const itemHeight = maxHeightPerItem;
+
       if (!measureOnly) {
         // Create and add arrow SVG
         const arrowSvg = this.createArrowSVG(this.THEME.primary);
-        await this.addSVGToSlide(arrowSvg, x + 0.5, currentY, 1, 0.6);
+        await this.addSVGToSlide(arrowSvg, x + 0.2, currentY, arrowWidth, itemHeight);
 
-        // Add content
-        const itemText = this.extractText(item);
+        // Add content with shrink-to-fit
         this.currentSlide?.addText(itemText, {
-          x: x + 1.8,
+          x: x + arrowWidth + 0.4,
           y: currentY,
-          w: width - 2.3,
-          h: 0.6,
-          fontSize: 12,
+          w: contentWidth,
+          h: itemHeight,
+          fontSize: 10,
           valign: "middle",
           align: "left",
           color: this.THEME.text,
+          fit: "shrink",
+          wrap: true,
         });
       }
 
-      currentY += 0.8;
+      currentY += itemHeight + itemSpacing;
     }
 
-    return currentY - y + 0.2;
+    return currentY - y + 0.1;
   }
 
   private async addPyramid(
@@ -848,63 +889,118 @@ export class PlateJSToPPTXConverter {
       ),
     );
 
-    const pyramidHeight = items.length * 0.8;
-    const baseWidth = width * 0.8;
-    const startX = x + (width - baseWidth) / 2;
+    // Layout: pyramid shapes on left (35% width), text on right (60% width)
+    const pyramidAreaWidth = width * 0.35;
+    const textAreaWidth = width * 0.58;
+    const textAreaX = x + pyramidAreaWidth + width * 0.07;
+    const itemSpacing = 0.08;
+
+    // Calculate height per item
+    const availableHeight = this.SLIDE_HEIGHT - y - 0.3;
+    const itemHeight = Math.min(0.75, availableHeight / items.length - itemSpacing);
+
+    let currentY = y;
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i] as
         | TPyramidItemElement
         | TVisualizationListItemElement;
-      const levelWidth = (baseWidth * (i + 1)) / items.length;
-      const levelX = startX + (baseWidth - levelWidth) / 2;
-      const levelY = y + i * 0.8;
 
-      // Create pyramid level shape using clip path algorithm from PyramidItem
-      const increment = (baseWidth * 0.8) / (2 * items.length);
-      let clipPath: string;
-
-      if (i === 0) {
-        // First layer is a triangle
-        clipPath = `polygon(50% 0%, ${50 - increment}% 100%, ${50 + increment}% 100%)`;
-      } else {
-        // For other layers
-        const prevXOffset = increment * i;
-        const currentXOffset = increment * (i + 1);
-        const prevBottomLeft = 50 - prevXOffset;
-        const prevBottomRight = 50 + prevXOffset;
-        const currentBottomLeft = 50 - currentXOffset;
-        const currentBottomRight = 50 + currentXOffset;
-        clipPath = `polygon(${prevBottomLeft}% 0%, ${prevBottomRight}% 0%, ${currentBottomRight}% 100%, ${currentBottomLeft}% 100%)`;
-      }
+      // Progressive width: starts at 20% for first item, grows to 100% for last item
+      const widthRatio = 0.2 + (0.8 * (i + 1)) / items.length;
+      const shapeWidth = pyramidAreaWidth * widthRatio;
+      const shapeX = x + (pyramidAreaWidth - shapeWidth) / 2;
 
       if (!measureOnly) {
-        // Create SVG for pyramid level
-        const pyramidSvg = this.createPyramidLevelSVG(
-          levelWidth * 72,
-          0.6 * 72,
-          this.THEME.primary,
-          clipPath,
-          (i + 1).toString(),
-        );
-        await this.addSVGToSlide(pyramidSvg, levelX, levelY, levelWidth, 0.6);
-
-        // Add content text
-        const itemText = this.extractText(item);
-        this.currentSlide?.addText(itemText, {
-          x: levelX + 0.7,
-          y: levelY,
-          w: levelWidth - 0.8,
-          h: 0.6,
-          fontSize: 12,
-          color: "FFFFFF",
-          valign: "middle",
-          align: "left",
+        // Draw trapezoid shape
+        this.currentSlide?.addShape(this.pptx.ShapeType.rect, {
+          x: shapeX,
+          y: currentY,
+          w: shapeWidth,
+          h: itemHeight,
+          fill: { color: this.THEME.primary },
+          line: { width: 0 },
         });
+
+        // Add number inside the shape
+        this.currentSlide?.addText((i + 1).toString(), {
+          x: shapeX,
+          y: currentY,
+          w: shapeWidth,
+          h: itemHeight,
+          fontSize: 16,
+          bold: true,
+          color: "FFFFFF",
+          align: "center",
+          valign: "middle",
+        });
+
+        // Extract text and try to split title from description
+        const fullText = this.extractText(item);
+        // Try to find a title pattern (first few words before a longer sentence)
+        const titleMatch = fullText.match(/^([A-Z][a-zA-Z\s]+?)(?=[A-Z][a-z]|$)/);
+        let title = "";
+        let description = fullText;
+
+        // Simple heuristic: first 2-3 words if they're capitalized might be title
+        const words = fullText.split(" ");
+        if (words.length > 3) {
+          // Check if first 2-3 words look like a title
+          const potentialTitle = words.slice(0, 3).join(" ");
+          if (potentialTitle.length < 30 && /^[A-Z]/.test(potentialTitle)) {
+            title = potentialTitle;
+            description = words.slice(3).join(" ");
+          }
+        }
+
+        // Add title (italic, accent color) - only if we found a title
+        if (title) {
+          this.currentSlide?.addText(title, {
+            x: textAreaX,
+            y: currentY,
+            w: textAreaWidth,
+            h: itemHeight * 0.35,
+            fontSize: 11,
+            italic: true,
+            color: this.THEME.accent,
+            valign: "bottom",
+            align: "left",
+          });
+
+          // Add description below title
+          this.currentSlide?.addText(description, {
+            x: textAreaX,
+            y: currentY + itemHeight * 0.35,
+            w: textAreaWidth,
+            h: itemHeight * 0.65,
+            fontSize: 9,
+            color: this.THEME.text,
+            valign: "top",
+            align: "left",
+            fit: "shrink",
+            wrap: true,
+          });
+        } else {
+          // No title found, just show all text
+          this.currentSlide?.addText(fullText, {
+            x: textAreaX,
+            y: currentY,
+            w: textAreaWidth,
+            h: itemHeight,
+            fontSize: 10,
+            color: this.THEME.text,
+            valign: "middle",
+            align: "left",
+            fit: "shrink",
+            wrap: true,
+          });
+        }
       }
+
+      currentY += itemHeight + itemSpacing;
     }
 
-    return pyramidHeight + 0.5;
+    return currentY - y + 0.1;
   }
 
   private async addTimeline(
@@ -955,6 +1051,15 @@ export class PlateJSToPPTXConverter {
     if (sidedness === "single") {
       const lineX = x + 0.3;
       let currentY = y;
+      const contentWidth = width - 1.2;
+      const itemSpacing = 0.1;
+
+      // Calculate available height and max height per item
+      const availableHeight = this.SLIDE_HEIGHT - y - 0.3;
+      const maxHeightPerItem = Math.min(0.7, availableHeight / items.length - itemSpacing);
+
+      // Calculate total line height
+      const totalLineHeight = items.length * (maxHeightPerItem + itemSpacing);
 
       if (!measureOnly) {
         // Draw vertical line
@@ -962,65 +1067,69 @@ export class PlateJSToPPTXConverter {
           x: lineX,
           y: y,
           w: 0,
-          h: items.length * 1.2,
+          h: totalLineHeight,
           line: { width: 3, color: this.THEME.primary },
         });
       }
 
       for (let i = 0; i < items.length; i++) {
         const item = items[i]!;
+        const itemText = this.extractText(item);
+        const itemHeight = maxHeightPerItem;
+
         if (!measureOnly) {
           // Add timeline circle with number
           this.currentSlide?.addShape(this.pptx.ShapeType.ellipse, {
-            x: lineX - 0.15,
+            x: lineX - 0.12,
             y: currentY,
-            w: 0.3,
-            h: 0.3,
-            fill: { color: "000000" },
-            line: { width: 3, color: "FFFFFF" },
+            w: 0.25,
+            h: 0.25,
+            fill: { color: this.THEME.primary },
+            line: { width: 2, color: "FFFFFF" },
           });
 
           // Add number
           this.currentSlide?.addText((i + 1).toString(), {
-            x: lineX - 0.15,
+            x: lineX - 0.12,
             y: currentY,
-            w: 0.3,
-            h: 0.3,
-            fontSize: 10,
+            w: 0.25,
+            h: 0.25,
+            fontSize: 9,
             bold: true,
             color: "FFFFFF",
             align: "center",
             valign: "middle",
           });
 
-          // Add content box
+          // Add content box with fixed height
           this.currentSlide?.addShape(this.pptx.ShapeType.rect, {
-            x: x + 0.8,
-            y: currentY - 0.2,
-            w: width - 1.2,
-            h: 0.8,
+            x: x + 0.6,
+            y: currentY,
+            w: width - 0.9,
+            h: itemHeight,
             fill: { color: this.THEME.background },
-            line: { width: 4, color: this.THEME.primary },
+            line: { width: 1, color: this.THEME.primary },
           });
 
-          // Add content text
-          const itemText = this.extractText(item);
+          // Add content text with shrink-to-fit
           this.currentSlide?.addText(itemText, {
-            x: x + 0.9,
-            y: currentY - 0.1,
-            w: width - 1.4,
-            h: 0.6,
-            fontSize: 11,
+            x: x + 0.7,
+            y: currentY + 0.02,
+            w: contentWidth,
+            h: itemHeight - 0.04,
+            fontSize: 9,
             valign: "middle",
             align: "left",
             color: this.THEME.text,
+            fit: "shrink",
+            wrap: true,
           });
         }
 
-        currentY += 1.2;
+        currentY += itemHeight + itemSpacing;
       }
 
-      return currentY - y + 0.3;
+      return currentY - y + 0.1;
     } else {
       // Double-sided vertical timeline
       let currentY = y;
@@ -1328,32 +1437,38 @@ export class PlateJSToPPTXConverter {
       ),
     );
 
-    const baseWidth = 1;
-    const maxWidth = 3;
-    const increment = (maxWidth - baseWidth) / (items.length - 1 || 1);
+    // All steps use full width, text is INSIDE the rectangle
+    const numberWidth = 0.5;
+    const itemSpacing = 0.1;
+
+    // Calculate available height and max height per item
+    const availableHeight = this.SLIDE_HEIGHT - y - 0.3;
+    const maxHeightPerItem = Math.min(0.65, availableHeight / items.length - itemSpacing);
+
     let currentY = y;
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      const stepWidth = baseWidth + i * increment;
+      const itemText = this.extractText(item);
+      const itemHeight = maxHeightPerItem;
 
       if (!measureOnly) {
-        // Add step rectangle
+        // Add full-width rectangle for this step
         this.currentSlide?.addShape(this.pptx.ShapeType.rect, {
           x: x,
           y: currentY,
-          w: stepWidth,
-          h: 0.6,
+          w: width,
+          h: itemHeight,
           fill: { color: this.THEME.primary },
-          line: { width: 1, color: "2F4F4F" },
+          line: { width: 0 },
         });
 
-        // Add number
+        // Add number on the left side of rectangle
         this.currentSlide?.addText((i + 1).toString(), {
           x: x + 0.1,
-          y: currentY + 0.1,
-          w: 0.4,
-          h: 0.4,
+          y: currentY,
+          w: numberWidth,
+          h: itemHeight,
           fontSize: 14,
           bold: true,
           color: "FFFFFF",
@@ -1361,23 +1476,25 @@ export class PlateJSToPPTXConverter {
           valign: "middle",
         });
 
-        // Add content
-        const itemText = this.extractText(item);
+        // Add content text INSIDE the rectangle (after the number)
         this.currentSlide?.addText(itemText, {
-          x: x + stepWidth + 0.2,
+          x: x + numberWidth + 0.2,
           y: currentY,
-          w: width - stepWidth - 0.3,
-          h: 0.6,
-          fontSize: 12,
+          w: width - numberWidth - 0.4,
+          h: itemHeight,
+          fontSize: 10,
           valign: "middle",
           align: "left",
+          color: "FFFFFF",
+          fit: "shrink",
+          wrap: true,
         });
       }
 
-      currentY += 0.8;
+      currentY += itemHeight + itemSpacing;
     }
 
-    return currentY - y + 0.2;
+    return currentY - y + 0.1;
   }
 
   private async addIcons(

@@ -2,6 +2,8 @@ import { PresentationGenerationManager } from "@/components/presentation/dashboa
 import PresentationHeader from "@/components/presentation/presentation-page/PresentationHeader";
 import type React from "react";
 
+import { InfographicSection } from "@/components/presentation/dashboard/InfographicSection";
+
 export default function PresentationLayout({
   children,
 }: {

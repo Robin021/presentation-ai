@@ -29,7 +29,7 @@ export function modelPicker(
 
   // Default to OpenAI
   const baseURL = env.OPENAI_BASE_URL;
-  const actualApiKey = env.OPENAI_API_KEY;
+  const actualApiKey = env.ONEAPI_API_KEY;
   const apiKeyPreview = actualApiKey ? `${actualApiKey.substring(0, 15)}...` : "missing";
 
   // Prioritize simple boolean checks for empty strings
@@ -41,7 +41,7 @@ export function modelPicker(
 
   const openai = createOpenAI({
     baseURL: env.OPENAI_BASE_URL,
-    apiKey: env.OPENAI_API_KEY,
+    apiKey: env.ONEAPI_API_KEY,
   });
 
   return openai(finalModelId) as unknown as LanguageModelV1;

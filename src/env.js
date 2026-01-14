@@ -9,7 +9,7 @@ export const env = createEnv({
       .enum(["development", "test", "production"])
       .default("development"),
 
-    OPENAI_API_KEY: z.string(),
+    ONEAPI_API_KEY: z.string(),
     OPENAI_BASE_URL: z.string().url().optional(),
     OPENAI_MODEL: z.string().optional(),
     SERPER_API_KEY: z.string().optional(),
@@ -35,7 +35,7 @@ export const env = createEnv({
     UNSPLASH_ACCESS_KEY: process.env.UNSPLASH_ACCESS_KEY,
     TAVILY_API_KEY: process.env.TAVILY_API_KEY,
     NODE_ENV: process.env.NODE_ENV,
-    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    ONEAPI_API_KEY: process.env.ONEAPI_API_KEY,
     OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
     OPENAI_MODEL: process.env.OPENAI_MODEL,
     SERPER_API_KEY: process.env.SERPER_API_KEY,
