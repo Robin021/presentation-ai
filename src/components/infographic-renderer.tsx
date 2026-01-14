@@ -20,6 +20,7 @@ function fixTemplateName(dsl: string): string {
     if (!match) return dsl;
 
     const templateName = match[1];
+    if (!templateName) return dsl;
 
     // If template is valid, return unchanged
     if (ALL_VALID_TEMPLATES.includes(templateName as any)) {
@@ -444,7 +445,7 @@ function cleanDslData(dsl: string): string {
 // Helper to extract background color from DSL
 function extractBackground(dsl: string): string | null {
     const match = dsl.match(/^\s*background\s+(#[a-fA-F0-9]{3,8})/m);
-    return match ? match[1] : null;
+    return match?.[1] ?? null;
 }
 
 export function StreamingInfographic({
