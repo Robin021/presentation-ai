@@ -9,12 +9,35 @@ import { Infographic } from '@antv/infographic';
 
 // ===== HTML Export =====
 
-export function exportInfographicToHTML(dsl: string, topic: string): void {
-    const html = generateHTMLTemplate(dsl, topic);
+export function exportInfographicToHTML(dsl: string, topic: string, theme?: string): void {
+    const html = generateHTMLTemplate(dsl, topic, theme);
     downloadHTML(html, `${sanitizeFilename(topic)}-infographic.html`);
 }
 
-function generateHTMLTemplate(syntax: string, title: string): string {
+function generateHTMLTemplate(syntax: string, title: string, theme?: string): string {
+    // Determine font family based on theme
+    const isPorsche = theme === 'porsche';
+    const fontFamily = isPorsche
+        ? "'Porsche Next TT', 'porsche-next', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+        : "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+
+    // Font face declaration for Porsche font (embedded as base64 or external URL)
+    const fontFaceDeclaration = isPorsche ? `
+        @font-face {
+            font-family: 'Porsche Next TT';
+            src: url('/fonts/porsche-next.woff2') format('woff2');
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: 'porsche-next';
+            src: url('/fonts/porsche-next.woff2') format('woff2');
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+        }
+    ` : '';
     // Split by ---SLIDE--- separator
     const slides = syntax.split('---SLIDE---').map(s => s.trim()).filter(Boolean);
     const slidesJSON = JSON.stringify(slides.map(s => escapeSyntax(s)));
@@ -26,13 +49,14 @@ function generateHTMLTemplate(syntax: string, title: string): string {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${escapeHtml(title)} - Infographic</title>
     <style>
+        ${fontFaceDeclaration}
         body, html { 
             margin: 0; 
             padding: 0; 
             width: 100%; 
             height: 100%; 
             overflow: hidden; 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-family: ${fontFamily};
         }
         #container { width: 100%; height: calc(100% - 60px); }
         #controls { 

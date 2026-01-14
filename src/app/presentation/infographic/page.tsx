@@ -179,7 +179,7 @@ function InfographicPageContent() {
 
         try {
             if (format === 'html') {
-                exportInfographicToHTML(finalDsl, topic || "infographic");
+                exportInfographicToHTML(finalDsl, topic || "infographic", theme);
                 toast.success("HTML 导出成功!");
             } else if (format === 'pdf') {
                 await exportInfographicToPDF(
