@@ -42,6 +42,7 @@ export function modelPicker(
   const openai = createOpenAI({
     baseURL: env.OPENAI_BASE_URL,
     apiKey: env.ONEAPI_API_KEY,
+    compatibility: 'compatible', // Relaxes validation for OpenAI-compatible APIs (e.g., Qwen, DeepSeek)
   });
 
   return openai(finalModelId) as unknown as LanguageModelV1;
