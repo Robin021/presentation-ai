@@ -50,7 +50,7 @@ export function InfographicPresentMode({ slides, onClose }: PresentModeProps) {
             <div className="flex-1 flex items-center justify-center p-8 bg-white">
                 <div className="w-full h-full max-w-7xl">
                     <InfographicRenderer
-                        data={slides[currentSlide]}
+                        data={slides[currentSlide]!}
                         className="w-full h-full"
                     />
                 </div>
