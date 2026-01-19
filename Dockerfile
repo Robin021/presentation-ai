@@ -13,8 +13,8 @@ COPY prisma ./prisma/
 # Configure npm registry to China mirror
 RUN pnpm config set registry https://registry.npmmirror.com
 
-# Install dependencies
-RUN pnpm install --frozen-lockfile
+# Install dependencies and generate Prisma client
+RUN pnpm install --frozen-lockfile && pnpm prisma generate
 
 # Builder image
 FROM public.ecr.aws/docker/library/node:20-alpine AS builder
