@@ -10,6 +10,9 @@ RUN corepack enable && corepack prepare pnpm@10.17.0 --activate
 COPY package.json pnpm-lock.yaml ./
 COPY prisma ./prisma/
 
+# Configure npm registry to China mirror
+RUN pnpm config set registry https://registry.npmmirror.com
+
 # Install dependencies
 RUN pnpm install --frozen-lockfile
 
