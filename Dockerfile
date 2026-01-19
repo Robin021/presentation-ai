@@ -43,24 +43,29 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copy necessary files
+# Copy necessary files from builder
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-
-# Set the correct permission for prerender cache
-RUN mkdir .next
 
 # Automatically leverage output traces to reduce image size
+# This includes a minimal node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Prisma needs to be copied separately because standalone doesn't include it
+# Copy Prisma Client
+RUN mkdir -p node_modules/.prisma node_modules/@prisma node_modules/.bin node_modules/prisma
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma/client ./node_modules/.prisma/client
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma/client ./node_modules/@prisma/client
+
+# Copy Prisma CLI for migrations
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
 
 # Copy entrypoint script and set permissions
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh && \
-    chown nextjs:nodejs docker-entrypoint.sh && \
-    chown nextjs:nodejs .next
+    chown nextjs:nodejs docker-entrypoint.sh
 
 USER nextjs
 
