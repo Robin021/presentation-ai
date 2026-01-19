@@ -1,5 +1,5 @@
 # Dependencies image
-FROM node:20-alpine AS deps
+FROM public.ecr.aws/docker/library/node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
@@ -14,7 +14,7 @@ COPY prisma ./prisma/
 RUN pnpm install --frozen-lockfile
 
 # Builder image
-FROM node:20-alpine AS builder
+FROM public.ecr.aws/docker/library/node:20-alpine AS builder
 WORKDIR /app
 
 RUN corepack enable && corepack prepare pnpm@10.17.0 --activate
@@ -31,7 +31,7 @@ ENV SKIP_ENV_VALIDATION=1
 RUN pnpm build
 
 # Production image
-FROM node:20-alpine AS runner
+FROM public.ecr.aws/docker/library/node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
