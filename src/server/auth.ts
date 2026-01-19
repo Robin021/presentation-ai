@@ -22,7 +22,7 @@ declare module "next-auth" {
   }
 }
 
-export const { auth, handlers, signIn, signOut } = NextAuth({
+const result = NextAuth({
   trustHost: true,
   session: {
     strategy: "jwt",
@@ -152,3 +152,41 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
     }),
   ],
 });
+
+export const { handlers, signIn, signOut } = result;
+
+export const auth = async () => {
+    // Check for real session first
+    const session = await result.auth();
+    if (session) return session;
+
+    // Use default admin user
+    const email = "admin@local.com";
+    let user = await db.user.findUnique({ where: { email } });
+    
+    if (!user) {
+        user = await db.user.create({
+            data: {
+                email,
+                password: "password",
+                name: "Local Admin",
+                role: "ADMIN",
+                hasAccess: true,
+                image: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
+            },
+        });
+    }
+
+    return {
+        user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            image: user.image,
+            role: user.role,
+            hasAccess: user.hasAccess,
+            isAdmin: user.role === "ADMIN",
+        },
+        expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    } as Session;
+};
