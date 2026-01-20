@@ -1,4 +1,18 @@
 services:
+  # Migration service - runs database schema sync before app starts
+  migration:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: deps
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/presentation
+    depends_on:
+      db:
+        condition: service_healthy
+    command: sh -c "pnpm prisma db push --accept-data-loss"
+    restart: "no"
+
   app:
     build:
       context: .
@@ -21,6 +35,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migration:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   db:
