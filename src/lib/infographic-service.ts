@@ -4,126 +4,71 @@ import { modelPicker } from "./model-picker";
 import { searchWeb } from "./search-service";
 import { InfographicGenerateOptions, ALL_VALID_TEMPLATES } from "./infographic-constants";
 
-// ===== SIMPLE MODE (Original Workflow) =====
+// ===== BRAINSTORMING MODE (Internal Knowledge) =====
 
-const SIMPLE_MODE_SYSTEM_PROMPT = `
-## Role
-You are an expert in infographic generation, mastering the core concepts of AntV Infographic and familiar with the syntax of AntV Infographic.
+const BRAINSTORM_SYSTEM_PROMPT = `
+You are a creative Information Designer and Content Strategist.
+Your goal is to plan insightful, detailed, and visually engaging AntV Infographic slides based on the user's topic.
 
-## Task
-Based on the given content, output AntV Infographic Syntax. You need to:
-1. Extract key information structure (title, description, items, etc).
-2. Select an appropriate template and theme.
-3. Use the AntV Infographic Syntax to describe the content, convenient for real-time streaming rendering.
+**Valid Templates (MUST choose from this list)**:
+${ALL_VALID_TEMPLATES.join("\n")}
 
-## Output Format
-Always use AntV Infographic Syntax plain text, wrapped in \`\`\`plain code block, no explanatory text should be output.
+**Task**:
+1. Deeply analyze the Topic and User Request to understand the core message.
+2. Brainstorm high-quality, non-generic content. Avoid "Lorem Ipsum" quality text. Use specific examples, plausible numbers, and concrete details.
+3. Plan {slideCount} distinct slides.
+4. For EACH slide, select the most appropriate template.
 
-## CRITICAL STRUCTURE (MUST FOLLOW EXACTLY)
+**Variety Rules**:
+- **DIVERSIFY TEMPLATES**: Do not use the same template category (e.g. "list") for consecutive slides.
+- **UNPREDICTABLE FLOW**: Mix Chart, Comparison, and Sequence templates.
+- **PRIORITIZE COMPLEXITY**: Use "chart-*" and "compare-*" and "quadrant-*" to show depth.
+- **VISUAL INTEREST**: Every slide must look different.
 
-The DSL has THREE root-level blocks:
-1. \`infographic <template-name>\` - First line only
-2. \`data\` - Contains title, desc, items (NO indentation)
-3. \`theme\` - Contains palette, fontFamily (NO indentation)
-
-**CORRECT STRUCTURE:**
-\`\`\`
-infographic <template-name>
-data
-  title Your Title Here
-  desc Description here
-  items
-    - label Item 1
-      value 100
-theme
-  palette #color1 #color2 #color3
-\`\`\`
-
-**WRONG STRUCTURE (DO NOT DO THIS):**
-\`\`\`
-infographic <template-name>
-  title Wrong!        ← WRONG: title should NOT be indented here
-  data                ← WRONG: data should NOT be indented
-    value 100
-\`\`\`
-
-## AntV Infographic Syntax Rules
-
-1. **First line**: \`infographic <template-name>\` (NO indentation after this line for data/theme)
-2. **Indentation**: Exactly TWO spaces per level, starting INSIDE data/theme blocks
-3. **Key-value**: "key value" (space-separated, NO colons)
-4. **Arrays**: prefix with "-" (hyphen + space)
-5. **Icon format**: MUST use "mdi/" prefix (e.g., "mdi/rocket-launch", "mdi/chart-line")
-6. **Data block**: At root level, contains title/desc/items
-7. **Items fields**: label(string) / value(number) / desc(string) / icon(string) / time(string) / children(object)
-8. **Theme block**: At root level, contains palette (space-separated hex colors) AND fontFamily
-9. **NO JSON, NO Markdown fences around the plain block, NO explanations**
-
-## Valid Templates (MUST choose from this list)
-${ALL_VALID_TEMPLATES.join("\\n")}
-
-## Template-Specific Rules
-- **Comparison templates** (compare-*): Construct exactly TWO root nodes and place every comparison item under them as children
-- **Hierarchy templates** (hierarchy-*): Use "children" field for nested structures
-- **Sequence templates** (sequence-*): Include "time" field if applicable
-- **Chart templates** (chart-*): Put numeric data in items with "value" field
-
-## Theme Rules
-- **Porsche theme**: MUST use \`fontFamily "Porsche Next TT"\` + palette #E60012 #000000 #FFFFFF
-- **Tech theme**: Blue palette #3b82f6 #8b5cf6 #60a5fa
-- **Nature theme**: Green palette #22c55e #10b981 #84cc16
-
-## Example 1: List Template
-\`\`\`plain
-infographic list-row-horizontal-icon-arrow
-data
-  title Internet Technology Evolution
-  desc From Web 1.0 to AI era
-  items
-    - time 1991
-      label Web 1.0
-      desc Tim Berners-Lee published the first website
-      icon mdi/web
-    - time 2004
-      label Web 2.0
-      desc Social media becomes mainstream
-      icon mdi/account-multiple
-    - time 2023
-      label AI Era
-      desc ChatGPT ignites generative AI revolution
-      icon mdi/brain
-theme
-  palette #3b82f6 #8b5cf6 #f97316
-\`\`\`
-
-## Example 2: Chart Template
-\`\`\`plain
-infographic chart-bar-plain-text
-data
-  title Q1 Sales Report
-  desc Quarterly performance overview
-  items
-    - label January
-      value 1200
-    - label February
-      value 1500
-    - label March
-      value 1800
-theme
-  palette #22c55e #10b981 #84cc16
-\`\`\`
-
-## Critical Rules
-- You are NOT allowed to output JSON, Markdown, explanations or additional text
-- Output ONLY the DSL in \`\`\`plain block
-- Strict indentation (2 spaces) INSIDE data/theme blocks
-- data and theme MUST be at root level (no indentation)
-- All icons with mdi/ prefix
-- **ENRICH CONTENT**: Use detailed descriptions and specific numbers. Avoid empty or generic text.
-- **NO COMMAS**: Numeric values (e.g. \`value 1000\`) MUST NOT contain commas. Write 1000, not 1,000.
-- **NORMALIZE SCALES**: Do not mix very small values (e.g. 5) with very large values (e.g. 50000) in the same chart.
-- **PALETTE SAFETY**: Do NOT use White (#FFFFFF) in the palette. It will be invisible. Use #CCCCCC or colors.
+**Output (JSON)**:
+{
+  "slides": [
+    {
+      "category": "sequence" | "compare" | "hierarchy" | "chart" | "list" | "relation" | "quadrant",
+      "templateName": "exact-template-name-from-list",
+      "reasoning": "Why this template fits the content",
+      "titleSuggestion": "Engaging Title",
+      "dataPoints": [
+        "Use full sentences or key stats",
+        "For charts: ensure you have label and value pairs implied here",
+        "For comparisons: list pros/cons or features"
+      ]
+    }
+  ]
+}
 `;
+
+async function brainstormStep(
+  topic: string,
+  description: string,
+  slideCount: number,
+  templateHint?: string
+) {
+  const model = modelPicker("openai");
+
+  const { object } = await generateObject({
+    model,
+    schema: z.object({
+      slides: z.array(z.object({
+        category: z.enum(["sequence", "compare", "hierarchy", "chart", "list", "relation", "quadrant"]),
+        templateName: z.string(),
+        reasoning: z.string(),
+        titleSuggestion: z.string(),
+        dataPoints: z.array(z.string()),
+      })),
+    }),
+    system: BRAINSTORM_SYSTEM_PROMPT.replace('{slideCount}', slideCount.toString()),
+    prompt: `Topic: ${topic} \nUser Context: ${description} \n\nGoal: Create a high-quality content plan for ${slideCount} slides. \n${templateHint ? `Preferred category: ${templateHint}` : ""}\n\nIMPORTANT: Think about the content first. What is the most interesting way to present this?`,
+  });
+
+  return object.slides;
+}
+
 
 /**
  * Fix incorrectly structured DSL.
@@ -237,55 +182,6 @@ function fixDslStructure(dsl: string): string {
   }
 
   return result.trim();
-}
-
-async function* generateSimpleMode(
-  topic: string,
-  description: string,
-  slideCount: number,
-  theme?: string
-): AsyncGenerator<string, void, unknown> {
-  const model = modelPicker("openai");
-
-  let themeInstructions = "";
-  if (theme === "porsche") {
-    themeInstructions = `\n**Theme**: Use Porsche theme with fontFamily "Porsche Next TT" and palette #E60012 #000000 #FFFFFF`;
-  } else if (theme === "tech") {
-    themeInstructions = `\n**Theme**: Use tech theme with blue palette #3b82f6 #8b5cf6 #60a5fa`;
-  } else if (theme === "nature") {
-    themeInstructions = `\n**Theme**: Use nature theme with green palette #22c55e #10b981 #84cc16`;
-  }
-
-  for (let i = 0; i < slideCount; i++) {
-    const prompt = `
-Topic: ${topic}
-${description ? `Description: ${description}` : ""}
-
-Generate slide ${i + 1} of ${slideCount} covering a specific aspect of this topic.
-${themeInstructions}
-
-Output ONLY the AntV Infographic Syntax. No explanations.
-`;
-
-    const result = await generateText({
-      model,
-      system: SIMPLE_MODE_SYSTEM_PROMPT,
-      prompt,
-    });
-
-    const cleanDsl = result.text
-      .replace(/```plain\n?/g, "")
-      .replace(/```\n?/g, "")
-      .trim();
-
-    // Fix incorrectly indented DSL structure
-    const fixedDsl = fixDslStructure(cleanDsl);
-
-    if (i > 0) {
-      yield "\n\n---SLIDE---\n\n";
-    }
-    yield fixedDsl;
-  }
 }
 
 // ===== RESEARCH MODE (Agentic Workflow) =====
@@ -481,7 +377,11 @@ async function generateStep(plan: any, theme: string = "default") {
     prompt: `Template: "${plan.templateName}"\nTitle: ${plan.titleSuggestion} \nData: ${JSON.stringify(plan.dataPoints)} \n${themeInstructions} \n${plan.category === 'compare' ? 'CRITICAL: TWO root nodes for comparison.\n' : ''} `,
   });
 
-  return text.replace(/```plain\n ? /g, "").replace(/```\n?/g, "").trim();
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+  const cleanDsl = text.replace(/```plain\n?/g, "").replace(/```\n?/g, "").trim();
+
+  // Apply structure fix for robustness
+  return fixDslStructure(cleanDsl);
 }
 
 async function* generateResearchMode(options: InfographicGenerateOptions): AsyncGenerator<string, void, unknown> {
@@ -503,14 +403,23 @@ async function* generateResearchMode(options: InfographicGenerateOptions): Async
 // ===== MAIN EXPORT =====
 
 export async function* generateInfographicStream(options: InfographicGenerateOptions): AsyncGenerator<string, void, unknown> {
-  const { topic, description, theme, itemsCount = 1, webSearchEnabled = false } = options;
+  const { topic, description, theme, itemsCount = 1, webSearchEnabled = false, templateHint } = options;
 
   if (webSearchEnabled) {
     // Research Mode (Agentic)
     yield* generateResearchMode(options);
   } else {
-    // Simple Mode (Direct, like original workflow)
-    yield* generateSimpleMode(topic, description, itemsCount, theme);
+    // Brainstorm Mode (Better Content than Simple Mode)
+    const slidesPlan = await brainstormStep(topic, description, itemsCount, templateHint);
+
+    for (let i = 0; i < slidesPlan.length; i++) {
+      const result = await generateStep(slidesPlan[i], theme || "default");
+
+      if (i > 0) {
+        yield "\n\n---SLIDE---\n\n";
+      }
+      yield result;
+    }
   }
 }
 
