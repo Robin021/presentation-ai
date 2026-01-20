@@ -1,6 +1,8 @@
-# Dependencies image
-FROM public.ecr.aws/docker/library/node:20-alpine AS deps
-RUN apk add --no-cache libc6-compat
+# Dependencies image - Use Debian slim for Puppeteer/Chromium support
+FROM public.ecr.aws/docker/library/node:20-slim AS deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssl \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 # Install pnpm
@@ -17,8 +19,12 @@ RUN pnpm config set registry https://registry.npmmirror.com
 RUN pnpm install --frozen-lockfile && pnpm prisma generate
 
 # Builder image
-FROM public.ecr.aws/docker/library/node:20-alpine AS builder
+FROM public.ecr.aws/docker/library/node:20-slim AS builder
 WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssl \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN corepack enable && corepack prepare pnpm@10.17.0 --activate
 
@@ -33,15 +39,42 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV SKIP_ENV_VALIDATION=1
 RUN pnpm build
 
-# Production image
-FROM public.ecr.aws/docker/library/node:20-alpine AS runner
+# Production image with Chromium for Puppeteer
+FROM public.ecr.aws/docker/library/node:20-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# Install Chromium and dependencies for Puppeteer
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssl \
+    chromium \
+    fonts-liberation \
+    fonts-noto-cjk \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libcups2 \
+    libdbus-1-3 \
+    libdrm2 \
+    libgbm1 \
+    libgtk-3-0 \
+    libnspr4 \
+    libnss3 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxkbcommon0 \
+    libxrandr2 \
+    xdg-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set Puppeteer to use system Chromium
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+
+RUN groupadd --system --gid 1001 nodejs
+RUN useradd --system --uid 1001 --gid nodejs nextjs
 
 # Copy necessary files from builder
 COPY --from=builder /app/public ./public
