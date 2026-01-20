@@ -211,6 +211,8 @@ export async function exportPresentation(
 
           for (let i = 0; i < col.eles.length; i++) {
             const m = col.eles[i];
+            if (!m) continue;
+
             const isText = textTypes.includes(m.type);
 
             if (!isText) {
@@ -225,14 +227,19 @@ export async function exportPresentation(
 
             if (currentGroup.length > 0) {
               const last = currentGroup[currentGroup.length - 1];
-              const wDiff = Math.abs(m.width - last.width);
 
-              // Split if width changes significantly (e.g. half col -> full width)
-              if (wDiff < 100) {
-                currentGroup.push(m);
+              if (last) {
+                const wDiff = Math.abs(m.width - last.width);
+
+                // Split if width changes significantly (e.g. half col -> full width)
+                if (wDiff < 100) {
+                  currentGroup.push(m);
+                } else {
+                  pushGroup(currentGroup, renderQueue);
+                  currentGroup = [m];
+                }
               } else {
-                pushGroup(currentGroup, renderQueue);
-                currentGroup = [m];
+                currentGroup.push(m);
               }
             } else {
               currentGroup = [m];
@@ -294,13 +301,17 @@ export async function exportPresentation(
           placedRects.push({ x: xInch, y: yInch, w: wInch, h: hEstInch });
 
           // Render
-          if (group.elements.length === 1 && !textTypes.includes(group.elements[0].type)) {
-            await addMeasuredElement(slide, group.elements[0], themeColors);
+          const singleEl = group.elements[0];
+          if (group.elements.length === 1 && singleEl && !textTypes.includes(singleEl.type)) {
+            await addMeasuredElement(slide, singleEl, themeColors);
           }
 
           // Render Text Group
           if (group.elements.length > 0) {
-            const isTextGroup = textTypes.includes(group.elements[0].type);
+            const firstGroupEl = group.elements[0];
+            if (!firstGroupEl) continue;
+
+            const isTextGroup = textTypes.includes(firstGroupEl.type);
             if (!isTextGroup) continue;
 
             const textObjects = group.elements.map((m) => {
@@ -389,6 +400,8 @@ function pushGroup(elements: ElementMeasurement[], queue: RenderGroup[]) {
   // Calculate bounding box
   const first = elements[0];
   const last = elements[elements.length - 1];
+
+  if (!first || !last) return;
 
   // Width: max width of elements
   const pElements = elements.filter(i => ["p", "text", "bullet-item"].includes(i.type));
