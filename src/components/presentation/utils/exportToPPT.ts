@@ -176,9 +176,19 @@ export class PlateJSToPPTXConverter {
   private async processSlide(slide: PlateSlide) {
     this.currentSlide = this.pptx.addSlide();
 
+    // Add slide background
+    if (slide.bgColor) {
+      this.currentSlide.background = { color: slide.bgColor.replace("#", "") };
+    } else {
+      this.currentSlide.background = { color: this.THEME.background.replace("#", "") };
+    }
+
     // Add root image first (no margins/padding as requested)
     if (slide.rootImage) {
-      await this.addRootImage(slide.rootImage, slide.layoutType);
+      // Skip root image for text-only layout
+      if (slide.layoutType !== "text-only") {
+        await this.addRootImage(slide.rootImage, slide.layoutType);
+      }
     }
 
     // Calculate content area based on layout
@@ -227,6 +237,9 @@ export class PlateJSToPPTXConverter {
           w: baseArea.w,
           h: baseArea.h * 0.6,
         };
+      case "text-only":
+        // Full width container
+        return baseArea;
       default:
         return baseArea;
     }
@@ -426,6 +439,28 @@ export class PlateJSToPPTXConverter {
           measureOnly,
         );
       case "p":
+        // Check if paragraph contains block elements (fix for DIVs parsed as P)
+        const hasBlockChildren = element.children && element.children.some((child) =>
+          ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'bullets', 'img', 'image', 'div'].includes((child as TElement).type)
+        );
+
+        if (hasBlockChildren) {
+          let currentY = y;
+          let totalHeight = 0;
+          for (const child of element.children) {
+            const h = await this.processElement(
+              child as PlateNode,
+              x,
+              currentY,
+              width,
+              measureOnly
+            );
+            currentY += h;
+            totalHeight += h;
+          }
+          return totalHeight;
+        }
+
         return this.addParagraph(
           element as ParagraphElement,
           x,
@@ -596,10 +631,12 @@ export class PlateJSToPPTXConverter {
     const runs = this.extractTextRuns(element);
     const textOptions = this.getTextOptions(element, fontSize);
     // Decide paragraph/body text color: force dark text on light backgrounds
-    const darkFallback = (this.THEME.secondary || "1F2937").replace("#", "");
+    // Avoid using secondary/primary colors as they might be brand colors (e.g. purple)
+    // Use THEME.text if available, otherwise standard dark gray
+    const darkFallback = "1F2937";
     const paragraphColor = this.isLightColor(this.THEME.background)
-      ? darkFallback
-      : this.THEME.text;
+      ? (this.THEME.text || darkFallback).replace("#", "")
+      : (this.THEME.text || "FFFFFF").replace("#", "");
     textOptions.color = paragraphColor;
 
     if (runs.length > 0) {
@@ -687,36 +724,62 @@ export class PlateJSToPPTXConverter {
         });
 
         // Add bullet content
-        const bulletRuns = this.extractTextRuns(bullet);
-        const bulletText = this.extractText(bullet);
+        const contentX = bulletX + 0.5;
         const contentWidth = columnWidth - 0.55; // Space after number box
-        if (bulletRuns.length > 0) {
-          this.currentSlide?.addText(bulletRuns, {
-            x: bulletX + 0.5,
-            y: bulletY,
-            w: contentWidth,
-            h: itemHeight - 0.1,
-            fontSize: 10,
-            valign: "top",
-            align: "left",
-            color: this.THEME.text,
-            fit: "shrink",
-            wrap: true,
-          });
+
+        // Check if bullet contains block elements
+        const hasBlockChildren = bullet.children && bullet.children.some((child) =>
+          ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'bullets', 'img', 'image', 'div'].includes((child as any).type)
+        );
+
+        if (hasBlockChildren) {
+          let currentContentY = bulletY;
+          for (const child of bullet.children) {
+            // Process block elements recursively
+            // We pass measureOnly=false since we are in the draw phase (unless addBullets called with measureOnly)
+            const h = await this.processElement(
+              child as PlateNode,
+              contentX,
+              currentContentY,
+              contentWidth,
+              measureOnly
+            );
+            currentContentY += h;
+          }
         } else {
-          this.currentSlide?.addText(bulletText, {
-            x: bulletX + 0.5,
-            y: bulletY,
-            w: contentWidth,
-            h: itemHeight - 0.1,
-            fontSize: 10,
-            valign: "top",
-            align: "left",
-            color: this.THEME.text,
-            fit: "shrink",
-            wrap: true,
-          });
+          // Fallback to text run extraction for simple bullets
+          const bulletRuns = this.extractTextRuns(bullet);
+          const bulletText = this.extractText(bullet);
+
+          if (bulletRuns.length > 0) {
+            this.currentSlide?.addText(bulletRuns, {
+              x: contentX,
+              y: bulletY,
+              w: contentWidth,
+              h: itemHeight - 0.1,
+              fontSize: 10,
+              valign: "top",
+              align: "left",
+              color: this.THEME.text,
+              fit: "shrink",
+              wrap: true,
+            });
+          } else {
+            this.currentSlide?.addText(bulletText, {
+              x: contentX,
+              y: bulletY,
+              w: contentWidth,
+              h: itemHeight - 0.1,
+              fontSize: 10,
+              valign: "top",
+              align: "left",
+              color: this.THEME.text,
+              fit: "shrink",
+              wrap: true,
+            });
+          }
         }
+
       }
 
       maxHeight = Math.max(maxHeight, (rowIndex + 1) * itemHeight);
@@ -1437,64 +1500,91 @@ export class PlateJSToPPTXConverter {
       ),
     );
 
-    // All steps use full width, text is INSIDE the rectangle
     const numberWidth = 0.5;
-    const itemSpacing = 0.1;
-
-    // Calculate available height and max height per item
-    const availableHeight = this.SLIDE_HEIGHT - y - 0.3;
-    const maxHeightPerItem = Math.min(0.65, availableHeight / items.length - itemSpacing);
+    const gap = 0.2;
+    const contentX = x + numberWidth + gap;
+    const contentWidth = width - numberWidth - gap;
+    const itemSpacing = 0.3;
 
     let currentY = y;
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      const itemText = this.extractText(item);
-      const itemHeight = maxHeightPerItem;
+      let itemHeight = 0;
+
+      // Calculate initial Y for this item
+      const itemStartY = currentY;
 
       if (!measureOnly) {
-        // Add full-width rectangle for this step
+        // Add number box (square)
         this.currentSlide?.addShape(this.pptx.ShapeType.rect, {
           x: x,
           y: currentY,
-          w: width,
-          h: itemHeight,
+          w: numberWidth,
+          h: numberWidth, // Make it square
           fill: { color: this.THEME.primary },
           line: { width: 0 },
         });
 
-        // Add number on the left side of rectangle
+        // Add number inside box
         this.currentSlide?.addText((i + 1).toString(), {
-          x: x + 0.1,
+          x: x,
           y: currentY,
           w: numberWidth,
-          h: itemHeight,
+          h: numberWidth,
           fontSize: 14,
           bold: true,
           color: "FFFFFF",
           align: "center",
           valign: "middle",
         });
+      }
 
-        // Add content text INSIDE the rectangle (after the number)
-        this.currentSlide?.addText(itemText, {
-          x: x + numberWidth + 0.2,
-          y: currentY,
-          w: width - numberWidth - 0.4,
-          h: itemHeight,
-          fontSize: 10,
-          valign: "middle",
-          align: "left",
-          color: "FFFFFF",
-          fit: "shrink",
-          wrap: true,
-        });
+      // Render content to the right
+      // Check if item contains block elements
+      // Cast item to specific type to access children safely
+      const stairItem = item as TStairItemElement;
+      const hasBlockChildren = stairItem.children && Array.isArray(stairItem.children) && stairItem.children.some((child) =>
+        ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'bullets', 'img', 'image', 'div'].includes((child as any).type)
+      );
+
+      if (hasBlockChildren) {
+        let currentContentY = currentY;
+        for (const child of stairItem.children) {
+          const h = await this.processElement(
+            child as PlateNode,
+            contentX,
+            currentContentY,
+            contentWidth,
+            measureOnly
+          );
+          currentContentY += h;
+        }
+        itemHeight = Math.max(numberWidth, currentContentY - currentY);
+      } else {
+        // Fallback for flat text
+        const itemText = this.extractText(item);
+        if (!measureOnly) {
+          this.currentSlide?.addText(itemText, {
+            x: contentX,
+            y: currentY,
+            w: contentWidth,
+            h: numberWidth, // default to align with box
+            fontSize: 10,
+            valign: "top",
+            align: "left",
+            color: this.THEME.text,
+            fit: "resize",
+            wrap: true,
+          });
+        }
+        itemHeight = Math.max(numberWidth, 0.5); // Minimal height
       }
 
       currentY += itemHeight + itemSpacing;
     }
 
-    return currentY - y + 0.1;
+    return currentY - y;
   }
 
   private async addIcons(

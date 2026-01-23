@@ -1,8 +1,63 @@
-import { generateText, generateObject } from "ai";
+import { generateText, generateObject, streamText } from "ai";
 import { z } from "zod";
 import { modelPicker } from "./model-picker";
 import { searchWeb } from "./search-service";
 import { InfographicGenerateOptions, ALL_VALID_TEMPLATES } from "./infographic-constants";
+
+// ... existing imports ...
+
+// [Helper] Streaming version of generateStep
+async function* generateStepStream(plan: any, theme: string = "default") {
+  const model = modelPicker("openai");
+
+  let themeInstructions = "";
+  if (theme === "porsche") {
+    themeInstructions = `** Theme **: Porsche - fontFamily "Porsche Next TT", palette #E60012 #000000 #FFFFFF`;
+  } else if (theme === "tech") {
+    themeInstructions = `** Theme **: Tech blue - palette #3b82f6 #8b5cf6 #60a5fa`;
+  } else if (theme === "nature") {
+    themeInstructions = `** Theme **: Nature green - palette #22c55e #10b981 #84cc16`;
+  }
+
+  const result = await streamText({
+    model,
+    system: GENERATION_SYSTEM_PROMPT,
+    prompt: `Template: "${plan.templateName}"\nTitle: ${plan.titleSuggestion} \nData: ${JSON.stringify(plan.dataPoints)} \n${themeInstructions} \n${plan.category === 'compare' ? 'CRITICAL: TWO root nodes for comparison.\n' : ''} `,
+  });
+
+  for await (const textPart of result.textStream) {
+    // Basic cleanup only (remove markdown blocks if they get tokenized split, hard to do perfectly in stream but we try)
+    // For streaming, we mostly rely on the prompt to be clean.
+    yield textPart;
+  }
+}
+
+export async function* createInfographicStream(options: InfographicGenerateOptions): AsyncGenerator<string, void, unknown> {
+  const { topic, description, theme, itemsCount = 1, webSearchEnabled = false, templateHint } = options;
+
+  if (webSearchEnabled) {
+    // Research Mode (Agentic)
+    yield* generateResearchMode(options);
+  } else {
+    // Brainstorm Mode (Better Content than Simple Mode)
+    // Yield a "thinking" message first? Optional.
+    const slidesPlan = await brainstormStep(topic, description, itemsCount, templateHint);
+
+    for (let i = 0; i < slidesPlan.length; i++) {
+      if (i > 0) {
+        yield "\n\n---SLIDE---\n\n";
+      }
+
+      // Use streaming generator
+      const stream = generateStepStream(slidesPlan[i], theme || "default");
+
+      for await (const token of stream) {
+        yield token;
+      }
+    }
+  }
+}
+
 
 // ===== BRAINSTORMING MODE (Internal Knowledge) =====
 
@@ -14,16 +69,31 @@ Your goal is to plan insightful, detailed, and visually engaging AntV Infographi
 ${ALL_VALID_TEMPLATES.join("\n")}
 
 **Task**:
-1. Deeply analyze the Topic and User Request to understand the core message.
-2. Brainstorm high-quality, non-generic content. Avoid "Lorem Ipsum" quality text. Use specific examples, plausible numbers, and concrete details.
-3. Plan {slideCount} distinct slides.
-4. For EACH slide, select the most appropriate template.
+1. **ANALYZE INPUT FIRST**: Thoroughly read the "User Context" / "Description". 
+   - **IF** the user provided detailed content (e.g. a report, a list of points, a structure): **Your primary job is to EXTRACT and ORGANIZE this content**. Do NOT invent new content if the user provided it. Stick to their terminology and structure.
+   - **IF** the user provided a vague request (e.g. "make a slide about coffee"): **THEN** use your creativity to brainstorm high-quality, plausible content.
+
+2. **Plan {slideCount} distinct slides**.
+3. For EACH slide, select the most appropriate template.
+   - Use specific details provided by the user.
+   - If user provided "Pain Points", "Root Causes", "Stages" -> Map these explicitly to slides.
+   - Do not use generic placeholders like "Lorem Ipsum".
+
+5. **Logical Flow (CRITICAL)**:
+   - **NARRATIVE**: Ensure a logical progression. Common patterns:
+     - *Problem -> Solution -> Impact*
+     - *Past -> Present -> Future*
+     - *Overview -> Detailed Analysis -> Conclusion*
+   - **TRANSITIONS**: Verify that Slide 2 follows naturally from Slide 1. Do NOT jump randomly between topics.
+   - **ORDER**: If the user provided a numbered list or stages, YOU MUST RESPECT THAT ORDER.
 
 **Variety Rules**:
-- **DIVERSIFY TEMPLATES**: Do not use the same template category (e.g. "list") for consecutive slides.
-- **UNPREDICTABLE FLOW**: Mix Chart, Comparison, and Sequence templates.
-- **PRIORITIZE COMPLEXITY**: Use "chart-*" and "compare-*" and "quadrant-*" to show depth.
-- **VISUAL INTEREST**: Every slide must look different.
+**Variety Rules (CRITICAL)**:
+- **AVOID REPETITION**: Do NOT use the same template category (especially "chart") more than once if possible.
+- **FORCE VARIETY**: You MUST use at least 3 distinct categories from: Sequence, Compare, Hierarchy, List, Relation, Quadrant.
+- **PROMOTE SEQUENCE/LIST**: For text-heavy content, prefer "sequence-*" (process/timeline) or "list-*" over charts.
+- **USE CHARTS SPARINGLY**: Only use "chart-*" if there are actual hard numbers. Do not force text into charts.
+- **VISUAL INTEREST**: Every slide must look completely different in structure to the previous one.
 
 **Output (JSON)**:
 {
@@ -32,7 +102,7 @@ ${ALL_VALID_TEMPLATES.join("\n")}
       "category": "sequence" | "compare" | "hierarchy" | "chart" | "list" | "relation" | "quadrant",
       "templateName": "exact-template-name-from-list",
       "reasoning": "Why this template fits the content",
-      "titleSuggestion": "Engaging Title",
+      "titleSuggestion": "Engaging Title (Use user's own headers if available)",
       "dataPoints": [
         "Use full sentences or key stats",
         "For charts: ensure you have label and value pairs implied here",
@@ -208,11 +278,15 @@ ${ALL_VALID_TEMPLATES.join("\n")}
 4. Extract key data points for each slide
 
 **Variety Rules**:
-- **DIVERSIFY TEMPLATES**: Do not use the same template category (e.g. "list") for consecutive slides.
-- **UNPREDICTABLE FLOW**: Do NOT follow a standard "Intro -> List -> Chart" structure. Surprise the audience. Start with a Chart or Comparison.
-- **MAXIMIZE COVERAGE**: Ensure at least 3-4 distinct categories (Sequence, Compare, Quadrant, Chart) are used in every presentation.
-- **PRIORITIZE COMPLEXITY**: Use "chart-*" and "compare-*" and "quadrant-*" as much as possible. Avoid simple "list-*" unless necessary.
-- **VISUAL INTEREST**: Every slide must look different from the previous one.
+**Variety Rules (CRITICAL)**:
+- **AVOID REPETITION**: Do NOT use the same template category (especially "chart") more than once if possible.
+- **FORCE VARIETY**: You MUST use at least 3 distinct categories from: Sequence, Compare, Hierarchy, List, Relation, Quadrant.
+- **PROMOTE SEQUENCE/LIST**: For text-heavy content, prefer "sequence-*" (process/timeline) or "list-*" over charts.
+- **USE CHARTS SPARINGLY**: Only use "chart-*" if there are actual hard numbers. Do not force text into charts.
+- **VISUAL INTEREST**: Every slide must look completely different in structure to the previous one.
+- **DATA DENSITY RULES**:
+   - **Pie/Donut Charts**: MAX 6 ITEMS. If > 6 items, MUST use "chart-bar" or "list-grid". Pie charts with many slices cause overlap.
+   - **Vertical Lists**: MAX 6 ITEMS. If > 6 items, use "list-grid" or "chart-bar".
 
 **Output (JSON)**:
 {
@@ -303,13 +377,14 @@ theme
 2. \`title\` and \`items\` MUST be inside \`data\` block (2-space indent)
 3. Each item in \`items\` MUST start with \`- label\`
 4. Icons MUST use \`mdi/\` prefix
-5. **RICH DATA**: Use \`desc\` fields for 1-2 sentences of context.
-6. **FULL FIELDS**: Use \`icon\` and \`value\` whenever possible to enhance visuals.
-7. **NO COMMAS**: Numeric values MUST NOT contain commas. e.g. \`value 10000\`.
-8. **NORMALIZE SCALES**: For chart templates, ensure all \`value\` fields are on a consistent scale (e.g., all in thousands, millions, or percentages) and clearly indicate the unit in the \`desc\` field of the data block if applicable.
-9. **PALETTE SAFETY**: Do NOT use White (#FFFFFF) in the palette. It will be invisible.
-10. **BACKGROUND**: You MAY set \`background #RRGGBB\` inside the \`theme\` block. If used, ensure palette contrasts with it.
-11. Output ONLY the DSL in \`\`\`plain block, NO explanations
+5. **DESCRIPTION LENGTH**: \`desc\` fields MUST be VERY short. **MAX 4 WORDS**. Example: "High growth", NOT "This segment experienced high growth in Q1".
+6. **LABEL LENGTH**: \`label\` fields MUST be VERY short. **MAX 3 WORDS**. Example: "Revenue", NOT "Total Annual Revenue Stream".
+7. **FULL FIELDS**: Use \`icon\` and \`value\` whenever possible to enhance visuals.
+8. **NO COMMAS**: Numeric values MUST NOT contain commas. e.g. \`value 10000\`.
+9. **NORMALIZE SCALES**: For chart templates, ensure all \`value\` fields are on a consistent scale (e.g., all in thousands, millions, or percentages) and clearly indicate the unit in the \`desc\` field of the data block if applicable.
+10. **PALETTE SAFETY**: Do NOT use White (#FFFFFF) in the palette. It will be invisible.
+11. **BACKGROUND**: You MAY set \`background #RRGGBB\` inside the \`theme\` block. If used, ensure palette contrasts with it.
+12. Output ONLY the DSL in \`\`\`plain block, NO explanations
   `;
 
 async function researchStep(topic: string, description: string): Promise<string> {
@@ -400,31 +475,10 @@ async function* generateResearchMode(options: InfographicGenerateOptions): Async
   }
 }
 
-// ===== MAIN EXPORT =====
 
-export async function* generateInfographicStream(options: InfographicGenerateOptions): AsyncGenerator<string, void, unknown> {
-  const { topic, description, theme, itemsCount = 1, webSearchEnabled = false, templateHint } = options;
-
-  if (webSearchEnabled) {
-    // Research Mode (Agentic)
-    yield* generateResearchMode(options);
-  } else {
-    // Brainstorm Mode (Better Content than Simple Mode)
-    const slidesPlan = await brainstormStep(topic, description, itemsCount, templateHint);
-
-    for (let i = 0; i < slidesPlan.length; i++) {
-      const result = await generateStep(slidesPlan[i], theme || "default");
-
-      if (i > 0) {
-        yield "\n\n---SLIDE---\n\n";
-      }
-      yield result;
-    }
-  }
-}
 
 export async function generateInfographic(options: InfographicGenerateOptions) {
-  const generator = generateInfographicStream(options);
+  const generator = createInfographicStream(options);
   const results: string[] = [];
   for await (const chunk of generator) {
     results.push(chunk);

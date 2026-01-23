@@ -19,7 +19,32 @@ function fixTemplateName(dsl: string): string {
     const match = dsl.match(/^infographic\s+(\S+)/);
     if (!match) return dsl;
 
-    const templateName = match[1];
+    let templateName = match[1];
+    if (!templateName) return dsl;
+
+    // --- Safety Valve: Dense Data Check ---
+    // Pie/Donut charts with too many items (>8) cause severe overlap.
+    // We automatically switch them to Bar charts which handle density better.
+    const isCircular = templateName.includes('chart-pie') || templateName.includes('chart-donut') || templateName.includes('rose');
+    if (isCircular) {
+        // Count items
+        const count = (dsl.match(/- label/g) || []).length;
+        if (count > 8) {
+            console.warn(`[InfographicRenderer] Detected dense circular chart (${count} items). Auto-switching to chart-bar-plain-text to prevent overlap.`);
+            let newDsl = dsl.replace(`infographic ${templateName}`, `infographic chart-bar-plain-text`);
+
+            // Aggressive Data Cleaning for Density:
+            // 1. Remove redundant percentage in parens e.g. "Label (30%)" -> "Label"
+            // This saves horizontal space for axis labels.
+            newDsl = newDsl.replace(/(\n\s*-\s*label\s+.*?)(\s*[(（]\d+[%％][)）])/g, '$1');
+
+            // 2. Remove redundant "Value" text in label if it repeats the numeric value
+            // (Heuristic: often users put "Sales 500" in label and 500 in value)
+
+            return newDsl; // Return immediately with new template
+        }
+    }
+
     if (!templateName) return dsl;
 
     // If template is valid, return unchanged
@@ -282,6 +307,23 @@ export function InfographicRenderer({
         }
     }, [data, streaming, testMode, isScriptLoaded, containerElement]);
 
+    // --- Streaming Check ---
+    // If we are streaming and render hasn't succeeded yet, show the raw text building up
+    if (streaming && !renderSuccess) {
+        return (
+            <div className={`${className} bg-gray-50 rounded-lg p-4 font-mono text-xs overflow-hidden relative border border-gray-100`}>
+                <div className="absolute top-2 right-2 flex items-center gap-2 px-2 py-1 bg-white rounded-md shadow-sm border border-gray-200">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                    <span className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">Generating DSL</span>
+                </div>
+                <pre className="whitespace-pre-wrap text-gray-600 h-full overflow-auto pb-8">
+                    {data || "Initializing..."}
+                    <span className="inline-block w-2 h-4 bg-primary ml-1 animate-pulse" />
+                </pre>
+            </div>
+        );
+    }
+
     // Error state - show DSL for debugging
     if (error && !streaming) {
         return (
@@ -408,17 +450,20 @@ function calculateContentDensityScale(dsl: string): number {
     let scale = 1.0;
 
     // Charts with many items need high res to prevent label overlap
-    if (isBarChart && count > 8) scale = 2.0;
-    else if (isBarChart && count > 5) scale = 1.5;
+    if (isBarChart && count > 8) scale = 1.25;
+    else if (isBarChart && count > 5) scale = 1.1;
 
     // Quadrants are crowded, give them space
-    if (isQuadrant) return 1.5;
+    if (isQuadrant) return 1.25;
 
     // Vertical sequences often have overlap if squashed into 16:9
-    if (isVerticalSequence && count > 4) return 1.5;
+    if (isVerticalSequence && count > 4) return 1.25;
+
+    // Complex lists
+    if (isComplexList) return 1.25;
 
     // Fallback for heavy text
-    if (dsl.length > 1500) scale = Math.max(scale, 1.5);
+    if (dsl.length > 1500) scale = Math.max(scale, 1.25);
 
     return scale;
 }
@@ -573,7 +618,7 @@ export function StreamingInfographic({
                         >
                             <InfographicRenderer
                                 data={dsl}
-                                streaming={false}
+                                streaming={isStreaming && index === parsedBlocks.length - 1}
                                 className="w-full h-full"
                                 testMode={false}
                             />

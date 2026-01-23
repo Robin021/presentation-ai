@@ -13,6 +13,7 @@ interface SlidesRequest {
   modelProvider?: string; // Model provider (openai, ollama, or lmstudio)
   modelId?: string; // Specific model ID for the provider
   searchResults?: Array<{ query: string; results: unknown[] }>; // Search results for context
+  imageSource?: string; // 'ai', 'stock', or 'none'
 }
 // TODO: Add table and chart to the available layouts
 const slidesTemplate = `
@@ -247,6 +248,7 @@ export async function POST(req: Request) {
       modelProvider = "openai",
       modelId,
       searchResults,
+      imageSource,
     } = (await req.json()) as SlidesRequest;
 
     if (!title || !outline || !Array.isArray(outline) || !language) {
@@ -294,6 +296,36 @@ export async function POST(req: Request) {
 
     const model = modelPicker(modelProvider, modelId);
 
+    // Adjust guidelines based on image source
+    let layoutGuidelines = `
+5. Vary the SECTION layout attribute (left/right/vertical) throughout the presentation
+   - Use each layout (left, right, vertical) at least twice
+   - Don't use the same layout more than twice in a row`;
+
+    let imageGuidelines = `
+4. Include at least one detailed image query in most of the slides`;
+
+    let layoutInstruction = `
+44: <SECTION layout="left" | "right" | "vertical">
+45:   <!-- Required: include ONE layout component per slide -->
+46:   <!-- Required: include at least one detailed image query -->
+47: </SECTION>`;
+
+    // If image generation is disabled, prioritize text-heavy layouts and remove image requirements
+    if (imageSource === "none") {
+      layoutGuidelines = `
+5. Use layout="keyboard" for all sections to optimize for text-only content`;
+
+      imageGuidelines = `
+4. DO NOT include image queries since image generation is disabled. Focus on rich text content.`;
+
+      layoutInstruction = `
+44: <SECTION layout="text-only">
+45:   <!-- Required: include ONE layout component per slide -->
+46:   <!-- DO NOT include image queries -->
+47: </SECTION>`;
+    }
+
     // Format the prompt with template variables
     const formattedPrompt = slidesTemplate
       .replace(/{TITLE}/g, title)
@@ -303,7 +335,11 @@ export async function POST(req: Request) {
       .replace(/{TONE}/g, tone)
       .replace(/{OUTLINE_FORMATTED}/g, outline.join("\n\n"))
       .replace(/{TOTAL_SLIDES}/g, outline.length.toString())
-      .replace(/{SEARCH_RESULTS}/g, searchResultsText);
+      .replace(/{SEARCH_RESULTS}/g, searchResultsText)
+      // Dynamic replacements for image source adaptation
+      .replace(/<SECTION layout="left" \| "right" \| "vertical">[\s\S]*?<\/SECTION>/, layoutInstruction)
+      .replace(/4\. Include at least one detailed image query in most of the slides/, imageGuidelines.trim())
+      .replace(/5\. Vary the SECTION layout attribute[\s\S]*?twice in a row/, layoutGuidelines.trim());
 
     console.log(`[PresentationAPI] Generating slides. Title="${title}", Slides=${outline.length}, ModelProvider=${modelProvider}, ModelId="${modelId}"`);
 

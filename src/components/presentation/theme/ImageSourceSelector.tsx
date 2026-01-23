@@ -21,10 +21,10 @@ export const IMAGE_MODELS: { value: ImageModelList; label: string }[] = [
 ];
 
 interface ImageSourceSelectorProps {
-  imageSource: "ai" | "stock";
+  imageSource: "ai" | "stock" | "none";
   imageModel: ImageModelList;
   stockImageProvider: "unsplash";
-  onImageSourceChange: (source: "ai" | "stock") => void;
+  onImageSourceChange: (source: "ai" | "stock" | "none") => void;
   onImageModelChange: (model: ImageModelList) => void;
   onStockImageProviderChange: (provider: "unsplash") => void;
   className?: string;
@@ -48,12 +48,16 @@ export function ImageSourceSelector({
       )}
       <Select
         value={
-          imageSource === "ai"
-            ? imageModel || "black-forest-labs/FLUX.1-schnell-Free"
-            : `stock-${stockImageProvider}`
+          imageSource === "none"
+            ? "none"
+            : imageSource === "ai"
+              ? imageModel || "black-forest-labs/FLUX.1-schnell-Free"
+              : `stock-${stockImageProvider}`
         }
         onValueChange={(value) => {
-          if (value.startsWith("stock-")) {
+          if (value === "none") {
+            onImageSourceChange("none");
+          } else if (value.startsWith("stock-")) {
             // Handle stock image selection
             const provider = value.replace("stock-", "") as "unsplash";
             onImageSourceChange("stock");
@@ -86,6 +90,12 @@ export function ImageSourceSelector({
               Stock Images
             </SelectLabel>
             <SelectItem value="stock-unsplash">Unsplash</SelectItem>
+          </SelectGroup>
+          <SelectGroup>
+            <SelectLabel className="text-primary/80 flex items-center gap-1">
+              No Image
+            </SelectLabel>
+            <SelectItem value="none">None</SelectItem>
           </SelectGroup>
         </SelectContent>
       </Select>

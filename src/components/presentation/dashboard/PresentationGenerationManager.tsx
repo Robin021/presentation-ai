@@ -69,6 +69,8 @@ export function PresentationGenerationManager() {
   const lastProcessedMessagesLength = useRef<number>(0);
   // Track if title has already been extracted to avoid unnecessary processing
   const titleExtractedRef = useRef<boolean>(false);
+  // Track in-flight image generations to prevent duplicate requests due to async state updates
+  const inFlightImageGenerationsRef = useRef<Set<string>>(new Set());
 
   // Function to update slides using requestAnimationFrame
   const updateSlidesWithRAF = (): void => {
@@ -108,7 +110,14 @@ export function PresentationGenerationManager() {
       const rootImage = slide.rootImage;
       if (rootImage?.query && !rootImage.url) {
         const already = rootImageGeneration[slideId];
-        if (!already || already.status === "error") {
+        // Also check our local ref to prevent duplicate requests during async state updates
+        if ((!already || already.status === "error") && !inFlightImageGenerationsRef.current.has(slideId)) {
+          // Skip if imageSource is "none"
+          if (imageSource === "none") {
+            continue;
+          }
+          inFlightImageGenerationsRef.current.add(slideId);
+          inFlightImageGenerationsRef.current.add(slideId);
           startRootImageGeneration(slideId, rootImage.query);
           void (async () => {
             try {
@@ -129,6 +138,7 @@ export function PresentationGenerationManager() {
               }
 
               if (result?.image?.url) {
+                inFlightImageGenerationsRef.current.delete(slideId);
                 completeRootImageGeneration(slideId, result.image.url);
                 // If we don't have a thumbnail yet, set it now and persist once
                 const stateNow = usePresentationState.getState();
@@ -158,9 +168,11 @@ export function PresentationGenerationManager() {
                   ),
                 );
               } else {
+                inFlightImageGenerationsRef.current.delete(slideId);
                 failRootImageGeneration(slideId, "No image url returned");
               }
             } catch (err) {
+              inFlightImageGenerationsRef.current.delete(slideId);
               const message =
                 err instanceof Error ? err.message : "Image generation failed";
               failRootImageGeneration(slideId, message);
@@ -474,6 +486,7 @@ export function PresentationGenerationManager() {
         modelProvider,
         modelId,
         setThumbnailUrl,
+        imageSource,
       } = usePresentationState.getState();
 
       // Reset the parser before starting a new generation
@@ -490,6 +503,7 @@ export function PresentationGenerationManager() {
           tone: presentationStyle,
           modelProvider,
           modelId,
+          imageSource,
         },
       });
     }
@@ -505,14 +519,22 @@ export function PresentationGenerationManager() {
     // Check for any pending root image generations that need to be processed
     for (const [slideId, gen] of Object.entries(rootImageGeneration)) {
       if (gen.status === "pending") {
+        // Skip if already in-flight (prevents duplicate requests during async state updates)
+        if (inFlightImageGenerationsRef.current.has(slideId)) {
+          continue;
+        }
         // Find the slide to get the rootImage query
         const slide = slides.find((s) => s.id === slideId);
         if (slide?.rootImage?.query) {
+          inFlightImageGenerationsRef.current.add(slideId);
           void (async () => {
             try {
               let result;
 
-              if (imageSource === "stock") {
+              if (imageSource === "none") {
+                // Should not happen due to check above, but for safety
+                result = { image: undefined };
+              } else if (imageSource === "stock") {
                 // Use Unsplash for stock images
                 const unsplashResult = await getImageFromUnsplash(
                   slide.rootImage!.query,
@@ -530,6 +552,7 @@ export function PresentationGenerationManager() {
               }
 
               if (result?.image?.url) {
+                inFlightImageGenerationsRef.current.delete(slideId);
                 completeRootImageGeneration(slideId, result.image.url);
                 // Update the slide with the new image URL
                 setSlides(
@@ -546,9 +569,11 @@ export function PresentationGenerationManager() {
                   ),
                 );
               } else {
+                inFlightImageGenerationsRef.current.delete(slideId);
                 failRootImageGeneration(slideId, "No image url returned");
               }
             } catch (err) {
+              inFlightImageGenerationsRef.current.delete(slideId);
               const message =
                 err instanceof Error ? err.message : "Image generation failed";
               failRootImageGeneration(slideId, message);

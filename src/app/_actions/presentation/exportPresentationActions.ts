@@ -69,6 +69,7 @@ const pxToInchY = (px: number) => (px / RENDER_HEIGHT_PX) * SLIDE_HEIGHT_INCHES;
  * Export presentation using DOM measurement approach
  * Renders slides, measures element positions, creates PPT with accurate layout
  */
+// Export presentation using Legacy converter (which supports Shapes/Wireframes)
 export async function exportPresentation(
   presentationId: string,
   fileName?: string,
@@ -80,304 +81,22 @@ export async function exportPresentation(
       return { success: false, error: "Unauthorized" };
     }
 
-    // Fetch presentation data
+    const { convertPlateJSToPPTX } = await import(
+      "@/components/presentation/utils/exportToPPT"
+    );
+
     const presentationData = await fetchPresentationData(
       presentationId,
       session.user.id,
     );
 
-    if (!presentationData.slides || presentationData.slides.length === 0) {
-      return { success: false, error: "No slides found in presentation" };
-    }
+    const arrayBuffer = await convertPlateJSToPPTX(
+      { slides: presentationData.slides },
+      theme,
+    );
 
-    // Dynamically import Puppeteer (server-side only)
-    const puppeteer = await import("puppeteer");
-
-    // Get base URL for rendering
-    const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
-
-    // Create PPTX
-    const pptx = new PptxGenJS();
-    pptx.layout = "LAYOUT_16x9";
-    pptx.author = "Presentation AI";
-    pptx.title = presentationData.title || "Presentation";
-    pptx.theme = {
-      headFontFace: "Inter",
-      bodyFontFace: "Inter",
-    };
-
-    // Apply theme colors
-    const themeColors: ThemeColors = {
-      primary: theme?.primary || "3B82F6",
-      secondary: theme?.secondary || "1F2937",
-      accent: theme?.accent || "60A5FA",
-      background: theme?.background || "FFFFFF",
-      text: theme?.text || "1F2937",
-      heading: theme?.heading || "111827",
-      muted: theme?.muted || "6B7280",
-    };
-
-    // Launch browser
-    const browser = await puppeteer.default.launch({
-      headless: true,
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-accelerated-2d-canvas",
-        "--disable-gpu",
-        "--font-render-hinting=none",
-      ],
-    });
-
-    try {
-      const page = await browser.newPage();
-
-      // Set viewport for 16:9 presentation aspect ratio
-      await page.setViewport({
-        width: RENDER_WIDTH_PX,
-        height: RENDER_HEIGHT_PX,
-        deviceScaleFactor: 1,
-      });
-
-      // Process each slide
-      for (let slideIndex = 0; slideIndex < presentationData.slides.length; slideIndex++) {
-        const slideData = presentationData.slides[slideIndex];
-        const url = `${baseUrl}/api/presentation/export-render?id=${presentationId}&slideIndex=${slideIndex}&mode=measure`;
-
-        await page.goto(url, {
-          waitUntil: "domcontentloaded", // Faster than 'load', doesn't wait for all images
-          timeout: 120000,   // Increased to 2 minutes
-        });
-
-        // Explicitly wait for the slide container to ensure react has rendered
-        await page.waitForSelector('#slide-content', { timeout: 30000 });
-
-        // Wait for fonts and rendering
-        await page.evaluate(() => document.fonts?.ready);
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-
-        // Get element measurements
-        const measurements = await page.evaluate(() => {
-          if (typeof window.measureElements === 'function') {
-            return window.measureElements();
-          }
-          return [];
-        }) as ElementMeasurement[];
-
-        // Create PPT slide with measured positions
-        const slide = pptx.addSlide();
-
-        // Add background
-        if (slideData?.bgColor) {
-          slide.background = { color: slideData.bgColor.replace("#", "") };
-        } else {
-          slide.background = { color: themeColors.background };
-        }
-
-        // Add root image if present
-        if (slideData?.rootImage?.url && slideData?.layoutType) {
-          await addRootImageToSlide(slide, slideData.rootImage, slideData.layoutType);
-        }
-
-        // --- Layout Engine Logic ---
-        // 1. Bucket measurements into columns (to prevent vertical interleaving issues)
-        // 2. Form groups within columns
-        // 3. Collect all groups into a global list
-        // 4. Sort by Y and perform collision detection to place them
-
-        const columns: { x: number, eles: ElementMeasurement[] }[] = [];
-        const ignorableTypes = ["column", "column_group", "bullets"];
-        const textTypes = ["h1", "h2", "h3", "h4", "p", "text", "bullet-item"];
-        const renderQueue: RenderGroup[] = [];
-
-        // 1. Bucket
-        for (const m of measurements) {
-          if (!m || ignorableTypes.includes(m.type)) continue;
-          const col = columns.find(c => Math.abs(c.x - m.x) < 50);
-          if (col) {
-            col.eles.push(m);
-          } else {
-            columns.push({ x: m.x, eles: [m] });
-          }
-        }
-
-        // 2. Form Groups
-        for (const col of columns) {
-          col.eles.sort((a, b) => a.y - b.y);
-
-          let currentGroup: ElementMeasurement[] = [];
-
-          for (let i = 0; i < col.eles.length; i++) {
-            const m = col.eles[i];
-            if (!m) continue;
-
-            const isText = textTypes.includes(m.type);
-
-            if (!isText) {
-              // Non-text elements are their own group
-              if (currentGroup.length > 0) {
-                pushGroup(currentGroup, renderQueue);
-                currentGroup = [];
-              }
-              pushGroup([m], renderQueue);
-              continue;
-            }
-
-            if (currentGroup.length > 0) {
-              const last = currentGroup[currentGroup.length - 1];
-
-              if (last) {
-                const wDiff = Math.abs(m.width - last.width);
-
-                // Split if width changes significantly (e.g. half col -> full width)
-                if (wDiff < 100) {
-                  currentGroup.push(m);
-                } else {
-                  pushGroup(currentGroup, renderQueue);
-                  currentGroup = [m];
-                }
-              } else {
-                currentGroup.push(m);
-              }
-            } else {
-              currentGroup = [m];
-            }
-          }
-          if (currentGroup.length > 0) {
-            pushGroup(currentGroup, renderQueue);
-          }
-        }
-
-        // 3. Sort & Place with Collision Detection
-        // Sort primarily by Y, secondarily by X
-        renderQueue.sort((a, b) => {
-          if (Math.abs(a.y - b.y) < 10) return a.x - b.x;
-          return a.y - b.y;
-        });
-
-        const placedRects: PlacedRect[] = [];
-
-        for (const group of renderQueue) {
-          const first = group.elements[0];
-          if (!first) continue;
-
-          // Initial position (inches)
-          let xInch = pxToInchX(group.x);
-          let yInch = pxToInchY(group.y);
-          const wInch = pxToInchX(group.w);
-          const hWebInch = pxToInchY(group.hWeb);
-
-          // Estimated Occupied Height in PPT (Increased safety buffer to 1.6x)
-          const hEstInch = hWebInch * 1.6;
-
-          // Collision Detection
-          // Check if this rect overlaps with any already placed rect
-          let overlapFound = true;
-          let attempts = 0;
-
-          while (overlapFound && attempts < 10) {
-            overlapFound = false;
-            for (const rect of placedRects) {
-              // Check intersection
-              const xOverlap = xInch < rect.x + rect.w && xInch + wInch > rect.x;
-              const yOverlap = yInch < rect.y + rect.h && yInch + hEstInch > rect.y;
-
-              if (xOverlap && yOverlap) {
-                // Collision! Push down.
-                // Move to bottom of the colliding rect + 0.1 inch padding
-                const newY = rect.y + rect.h + 0.1;
-                if (newY > yInch) {
-                  yInch = newY;
-                  overlapFound = true; // Re-check collision at new position
-                }
-              }
-            }
-            if (overlapFound) attempts++;
-          }
-
-          // Register this placement
-          placedRects.push({ x: xInch, y: yInch, w: wInch, h: hEstInch });
-
-          // Render
-          const singleEl = group.elements[0];
-          if (group.elements.length === 1 && singleEl && !textTypes.includes(singleEl.type)) {
-            await addMeasuredElement(slide, singleEl, themeColors);
-          }
-
-          // Render Text Group
-          if (group.elements.length > 0) {
-            const firstGroupEl = group.elements[0];
-            if (!firstGroupEl) continue;
-
-            const isTextGroup = textTypes.includes(firstGroupEl.type);
-            if (!isTextGroup) continue;
-
-            const textObjects = group.elements.map((m) => {
-              const styles = m.styles;
-              const fontSizeMatch = styles.fontSize.match(/(\d+)/);
-              const fontSizePx = fontSizeMatch && fontSizeMatch[1] ? parseInt(fontSizeMatch[1], 10) : 24;
-              const fontSizePt = Math.round(fontSizePx * 0.55);
-              const isBold = styles.fontWeight === "bold" || parseInt(styles.fontWeight, 10) >= 600;
-
-              let color = themeColors.text;
-              if (["h1", "h2", "h3", "h4"].includes(m.type)) color = themeColors.accent;
-
-              const rgbMatch = styles.color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
-              if (rgbMatch && rgbMatch[1] && rgbMatch[2] && rgbMatch[3]) {
-                const r = parseInt(rgbMatch[1], 10).toString(16).padStart(2, "0");
-                const g = parseInt(rgbMatch[2], 10).toString(16).padStart(2, "0");
-                const b = parseInt(rgbMatch[3], 10).toString(16).padStart(2, "0");
-                color = `${r}${g}${b}`;
-              }
-
-              const isBullet = m.type === "bullet-item";
-
-              return {
-                text: m.text,
-                options: {
-                  fontSize: fontSizePt,
-                  bold: isBold,
-                  color,
-                  breakLine: true,
-                  paraSpaceAfter: 6,
-                  // Remove fixed lineSpacing 12. Using undefined or font-based.
-                  // Default PPT line spacing is usually 1.0 lines (approx 1.2 * fontSize)
-                  bullet: isBullet ? true : undefined,
-                }
-              };
-            });
-
-            slide.addText(textObjects, {
-              x: xInch,      // Use the Collision-Adjusted Y
-              y: yInch,
-              w: wInch,
-              valign: "top",
-              align: (first.styles.textAlign as "left" | "center" | "right") || "left",
-              wrap: true,
-              inset: 0,
-            });
-          }
-        }
-
-      }
-    } finally {
-      await browser.close();
-    }
-
-    // Generate PPTX
-    const pptxOutput = await pptx.write({ outputType: "arraybuffer" });
-
-    // Convert to base64
-    let base64: string;
-    if (pptxOutput instanceof ArrayBuffer) {
-      base64 = Buffer.from(pptxOutput).toString("base64");
-    } else if (pptxOutput instanceof Uint8Array) {
-      base64 = Buffer.from(pptxOutput).toString("base64");
-    } else {
-      base64 = Buffer.from(pptxOutput as string).toString("base64");
-    }
+    const buffer = Buffer.from(arrayBuffer);
+    const base64 = buffer.toString("base64");
 
     return {
       success: true,
@@ -386,10 +105,7 @@ export async function exportPresentation(
     };
   } catch (error) {
     console.error("Error exporting presentation:", error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Failed to export presentation",
-    };
+    return { success: false, error: "Failed to export presentation" };
   }
 }
 

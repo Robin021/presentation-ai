@@ -16,6 +16,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { themes } from "@/lib/presentation/themes";
 import { usePresentationState } from "@/states/presentation-state";
 import { Download } from "lucide-react";
+import { useTheme } from "next-themes";
 import { useState } from "react";
 
 interface ExportPPTButtonProps {
@@ -27,6 +28,7 @@ export function ExportButton({
   presentationId,
   fileName = "presentation",
 }: ExportPPTButtonProps) {
+  const { resolvedTheme } = useTheme();
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const { toast } = useToast();
@@ -37,10 +39,11 @@ export function ExportButton({
     try {
       setIsExporting(true);
 
-      // Build theme colors to pass to server (always use LIGHT palette for PPT)
+      // Build theme colors to pass to server
       const themeColors = (() => {
+        const isDark = resolvedTheme === "dark";
         if (customThemeData) {
-          const colors = customThemeData.colors.light;
+          const colors = isDark ? customThemeData.colors.dark : customThemeData.colors.light;
           return {
             primary: colors.primary.replace("#", ""),
             secondary: colors.secondary.replace("#", ""),
@@ -53,7 +56,7 @@ export function ExportButton({
         }
         if (typeof theme === "string" && theme in themes) {
           const t = themes[theme as keyof typeof themes];
-          const colors = t.colors.light;
+          const colors = isDark ? t.colors.dark : t.colors.light;
           return {
             primary: colors.primary.replace("#", ""),
             secondary: colors.secondary.replace("#", ""),

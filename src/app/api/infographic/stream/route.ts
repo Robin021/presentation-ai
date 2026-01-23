@@ -1,6 +1,6 @@
 import { auth } from "@/server/auth";
 import { NextResponse } from "next/server";
-import { generateInfographicStream } from "@/lib/infographic-service";
+import { createInfographicStream } from "@/lib/infographic-service";
 
 interface InfographicStreamRequest {
     topic: string;
@@ -45,7 +45,7 @@ export async function POST(req: Request) {
         const stream = new ReadableStream({
             async start(controller) {
                 try {
-                    const generator = generateInfographicStream({
+                    const generator = createInfographicStream({
                         topic,
                         description,
                         templateHint,

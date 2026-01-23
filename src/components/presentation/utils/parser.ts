@@ -120,7 +120,7 @@ export type PlateNode =
   | TTableRowElement
   | TTableCellElement;
 
-export type LayoutType = "left" | "right" | "vertical" | "background";
+export type LayoutType = "left" | "right" | "vertical" | "background" | "text-only";
 export type RootImage = {
   query: string;
   url?: string;
@@ -174,7 +174,7 @@ export class SlideParser {
     const isFullContent =
       chunk.length >= this.lastInputLength &&
       chunk.substring(0, this.lastInputLength) ===
-        this.buffer.substring(0, this.lastInputLength);
+      this.buffer.substring(0, this.lastInputLength);
 
     // If we're getting the full content (previous + new),
     // we only want to process what's new
@@ -501,7 +501,8 @@ export class SlideParser {
         layoutAttr === "left" ||
         layoutAttr === "right" ||
         layoutAttr === "vertical" ||
-        layoutAttr === "background"
+        layoutAttr === "background" ||
+        layoutAttr === "text-only"
       ) {
         layoutType = layoutAttr as LayoutType;
       } else {
@@ -1451,13 +1452,13 @@ export class SlideParser {
               cellChildren.length > 0
                 ? cellChildren
                 : ([
-                    {
-                      type: "p",
-                      children: [
-                        { text: cellNode.content?.trim?.() || "" } as TText,
-                      ],
-                    },
-                  ] as unknown as Descendant[]),
+                  {
+                    type: "p",
+                    children: [
+                      { text: cellNode.content?.trim?.() || "" } as TText,
+                    ],
+                  },
+                ] as unknown as Descendant[]),
           } as unknown as TTableCellElement;
 
           cells.push(cell);
@@ -1643,8 +1644,8 @@ export class SlideParser {
 
     const variant: "filled" | "outline" | "ghost" | undefined =
       variantAttr === "filled" ||
-      variantAttr === "outline" ||
-      variantAttr === "ghost"
+        variantAttr === "outline" ||
+        variantAttr === "ghost"
         ? (variantAttr as "filled" | "outline" | "ghost")
         : undefined;
 
@@ -1787,7 +1788,7 @@ export class SlideParser {
     const plateNodes: PlateNode[] = [];
 
     // Scan through nodes to group consecutive LI tags into a single generic list (Plate list) group
-    for (let i = 0; i < nodes.length; ) {
+    for (let i = 0; i < nodes.length;) {
       const node = nodes[i];
       if (!node) {
         i += 1;

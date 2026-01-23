@@ -67,6 +67,7 @@ const PresentationEditorStaticView = React.memo(
           initialContent?.layoutType === "vertical" && "flex-col-reverse",
           initialContent?.layoutType === "left" && "flex-row-reverse",
           initialContent?.layoutType === "background" && "flex-col",
+          initialContent?.layoutType === "text-only" && "flex-col",
           "presentation-slide",
         )}
         style={{
@@ -74,7 +75,7 @@ const PresentationEditorStaticView = React.memo(
           backgroundColor: initialContent?.bgColor || undefined,
           backgroundImage:
             initialContent?.layoutType === "background" &&
-            initialContent?.rootImage?.url
+              initialContent?.rootImage?.url
               ? `url(${initialContent.rootImage.url})`
               : undefined,
           backgroundSize: "cover",
@@ -98,7 +99,8 @@ const PresentationEditorStaticView = React.memo(
 
         {initialContent?.rootImage &&
           initialContent.layoutType !== undefined &&
-          initialContent.layoutType !== "background" && (
+          initialContent.layoutType !== "background" &&
+          initialContent.layoutType !== "text-only" && (
             <RootImageStatic
               image={initialContent.rootImage}
               layoutType={initialContent.layoutType}

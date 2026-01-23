@@ -24,30 +24,61 @@ export function InfographicModal() {
     const [isOpen, setIsOpen] = useState(false);
 
     const handleGenerate = async () => {
-        if (!topic || !description) return;
+        if (!topic) return;
 
         setLoading(true);
-        // Don't clear previous result immediately to avoid flickering empty state if re-generating
-        // setDsl(null); 
+        setDsl(""); // Start fresh for streaming
 
         try {
-            const res = await fetch("/api/infographic/generate", {
+            const res = await fetch("/api/infographic/stream", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ topic, description }),
+                body: JSON.stringify({
+                    topic,
+                    description: description || topic, // Fallback if description is empty (though validation handles it)
+                    webSearchEnabled: false
+                }),
             });
 
-            const data = await res.json();
-            if (data.dsl) {
-                setDsl(data.dsl);
-                toast.success("Infographic generated!");
-            } else {
-                console.error(data.error);
-                toast.error("Failed to generate infographic");
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.error || "Failed to generate");
             }
+
+            const reader = res.body?.getReader();
+            if (!reader) return;
+
+            const decoder = new TextDecoder();
+            let buffer = "";
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+
+                // Keep the last incomplete line in buffer
+                buffer = lines.pop() || "";
+
+                for (const line of lines) {
+                    if (line.startsWith("0:")) {
+                        try {
+                            // Protocol: 0:"string content"
+                            const jsonStr = line.substring(2);
+                            const content = JSON.parse(jsonStr);
+                            setDsl(prev => (prev || "") + content);
+                        } catch (e) {
+                            console.error("Error parsing stream chunk:", e);
+                        }
+                    }
+                }
+            }
+
+            toast.success("Infographic generated successfully!");
         } catch (e) {
             console.error(e);
-            toast.error("An error occurred");
+            toast.error(e instanceof Error ? e.message : "An error occurred");
         } finally {
             setLoading(false);
         }

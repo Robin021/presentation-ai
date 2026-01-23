@@ -18,7 +18,7 @@ interface PresentationState {
   showTemplates: boolean;
   presentationInput: string;
   imageModel: ImageModelList;
-  imageSource: "ai" | "stock";
+  imageSource: "ai" | "stock" | "none";
   stockImageProvider: "unsplash";
   presentationStyle: string;
   modelProvider: "openai" | "ollama" | "lmstudio";
@@ -27,7 +27,6 @@ interface PresentationState {
   isPresenting: boolean;
   currentSlideIndex: number;
   isThemeCreatorOpen: boolean;
-
   config: Record<string, unknown>;
   setConfig: (config: Record<string, unknown>) => void;
   // Generation states
@@ -43,8 +42,6 @@ interface PresentationState {
   // Thinking content from AI responses
   outlineThinking: string; // Thinking content from outline generation
   presentationThinking: string; // Thinking content from presentation generation
-
-  // Root image generation tracking by slideId
   rootImageGeneration: Record<
     string,
     {
@@ -88,7 +85,7 @@ interface PresentationState {
   setPresentationThinking: (thinking: string) => void;
   setWebSearchEnabled: (enabled: boolean) => void;
   setImageModel: (model: ImageModelList) => void;
-  setImageSource: (source: "ai" | "stock") => void;
+  setImageSource: (source: "ai" | "stock" | "none") => void;
   setStockImageProvider: (provider: "unsplash") => void;
   setPresentationStyle: (style: string) => void;
   setModelProvider: (provider: "openai" | "ollama" | "lmstudio") => void;
