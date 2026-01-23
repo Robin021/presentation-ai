@@ -385,7 +385,7 @@ export async function exportInfographicToPPT(slides: string[], topic: string, on
                             for (let i = 0; i < node.children.length; i++) {
                                 const child = node.children[i];
                                 // If this child has the text content we are looking for (or a significant part), go deeper
-                                if (child.textContent?.trim().length) {
+                                if (child && child.textContent?.trim().length) {
                                     return findTextParent(child);
                                 }
                             }
