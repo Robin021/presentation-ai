@@ -453,7 +453,7 @@ export async function exportInfographicToPPT(slides: string[], topic: string, on
                         w: newW,     // Store as number
                         h: newH,     // Store as number
                         fontSize: fontSizePt,
-                        fontFace: (style.getPropertyValue('font-family') || 'Arial').split(',')[0].replace(/['"]/g, ''),
+                        fontFace: ((style.getPropertyValue('font-family') || 'Arial').split(',')[0] || 'Arial').replace(/['"]/g, ''),
                         color: rgbToHex(finalColor),
                         align
                     });
@@ -583,9 +583,9 @@ function rgbToHex(color: string): string {
     const rgb = color.match(/\d+/g);
     if (!rgb || rgb.length < 3) return '#000000';
 
-    const r = parseInt(rgb[0]).toString(16).padStart(2, '0');
-    const g = parseInt(rgb[1]).toString(16).padStart(2, '0');
-    const b = parseInt(rgb[2]).toString(16).padStart(2, '0');
+    const r = parseInt(rgb[0] || '0').toString(16).padStart(2, '0');
+    const g = parseInt(rgb[1] || '0').toString(16).padStart(2, '0');
+    const b = parseInt(rgb[2] || '0').toString(16).padStart(2, '0');
 
     return `#${r}${g}${b}`;
 }
