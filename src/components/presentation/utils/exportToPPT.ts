@@ -249,7 +249,7 @@ export class PlateJSToPPTXConverter {
     if (!this.currentSlide) return;
     if (!rootImage.url) return;
 
-    const imagePath = rootImage.url as string;
+    const imagePath = this.resolveImagePath(rootImage.url);
 
     let imageOptions: PptxGenJS.ImageProps = {
       path: imagePath,
@@ -1653,7 +1653,7 @@ export class PlateJSToPPTXConverter {
     if (!measureOnly && imageUrl && this.currentSlide) {
       try {
         const imageOptions: PptxGenJS.ImageProps = {
-          path: imageUrl,
+          path: this.resolveImagePath(imageUrl),
           x,
           y,
           w: width,
@@ -1781,6 +1781,25 @@ export class PlateJSToPPTXConverter {
         fill: { color: this.THEME.primary },
       });
     }
+  }
+
+  private resolveImagePath(url: string | undefined): string {
+    if (!url) return "";
+    if (url.startsWith("http") || url.startsWith("data:")) return url;
+
+    // Handle local paths for server-side generation
+    // Check if we are in a Node environment (has process.cwd)
+    if (url.startsWith("/") && typeof process !== "undefined" && typeof process.cwd === "function") {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const path = require("path");
+        return path.join(process.cwd(), "public", url);
+      } catch (e) {
+        console.warn("Failed to resolve local image path:", e);
+        return url;
+      }
+    }
+    return url;
   }
 
   // Helper Methods
