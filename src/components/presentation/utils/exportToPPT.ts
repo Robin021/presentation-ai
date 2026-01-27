@@ -131,17 +131,17 @@ export class PlateJSToPPTXConverter {
     },
   };
 
-  constructor(theme?: Partial<ThemeColors>) {
+  constructor(theme?: Partial<ThemeColors>, fontFace?: string) {
     this.pptx = new PptxGenJS();
-    this.setupPresentation();
+    this.setupPresentation(fontFace);
     if (theme) this.applyTheme(theme);
   }
 
-  private setupPresentation() {
+  private setupPresentation(fontFace?: string) {
     this.pptx.layout = "LAYOUT_16x9";
     this.pptx.theme = {
-      headFontFace: "Inter",
-      bodyFontFace: "Inter",
+      headFontFace: fontFace ?? "Inter",
+      bodyFontFace: fontFace ?? "Inter",
     };
   }
 
@@ -1978,8 +1978,9 @@ export class PlateJSToPPTXConverter {
 export async function convertPlateJSToPPTX(
   presentationData: PresentationData,
   theme?: Partial<ThemeColors>,
+  fontFace?: string,
 ): Promise<ArrayBuffer> {
-  const converter = new PlateJSToPPTXConverter(theme);
+  const converter = new PlateJSToPPTXConverter(theme, fontFace);
   const pptx = await converter.convertToPPTX(presentationData);
   const output = await pptx.write({ outputType: "arraybuffer" });
   // Type guards: library type says it can be string | ArrayBuffer | Blob | Uint8Array

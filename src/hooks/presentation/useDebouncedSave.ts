@@ -35,6 +35,7 @@ export const useDebouncedSave = (options: UseDebouncedSaveOptions = {}) => {
           language,
           config,
           thumbnailUrl,
+          theme,
         } = usePresentationState.getState();
 
         // Don't save if there's no presentation or slides
@@ -54,6 +55,7 @@ export const useDebouncedSave = (options: UseDebouncedSaveOptions = {}) => {
             presentationStyle,
             language,
             thumbnailUrl,
+            theme,
           });
 
           setSavingStatus("saved");
@@ -93,6 +95,7 @@ export const useDebouncedSave = (options: UseDebouncedSaveOptions = {}) => {
       language,
       config,
       thumbnailUrl,
+      theme,
     } = usePresentationState.getState();
 
     // Don't save if there's no presentation
@@ -113,6 +116,7 @@ export const useDebouncedSave = (options: UseDebouncedSaveOptions = {}) => {
         imageSource,
         presentationStyle,
         thumbnailUrl,
+        theme,
       });
 
       setSavingStatus("saved");

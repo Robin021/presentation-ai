@@ -74,6 +74,7 @@ export async function exportPresentation(
   presentationId: string,
   fileName?: string,
   theme?: Partial<ThemeColors>,
+  fontFace?: string,
 ): Promise<ExportResult> {
   try {
     const session = await auth();
@@ -93,6 +94,7 @@ export async function exportPresentation(
     const arrayBuffer = await convertPlateJSToPPTX(
       { slides: presentationData.slides },
       theme,
+      fontFace,
     );
 
     const buffer = Buffer.from(arrayBuffer);
@@ -144,7 +146,8 @@ function pushGroup(elements: ElementMeasurement[], queue: RenderGroup[]) {
 async function addMeasuredElement(
   slide: PptxGenJS.Slide,
   measurement: ElementMeasurement,
-  themeColors: ThemeColors
+  themeColors: ThemeColors,
+  fontFace?: string
 ): Promise<void> {
   const { type, x, y, width, height, text, styles } = measurement;
 
@@ -182,7 +185,7 @@ async function addMeasuredElement(
 
   // Common text options
   const commonOptions = {
-    fontFace: "Inter",
+    fontFace: fontFace ?? "Inter",
     align,
     inset: 0,
     // Removed fixed lineSpacing to fix Header overlap
@@ -231,7 +234,7 @@ async function addMeasuredElement(
           h: hInch,
           fontSize: fontSizePt,
           color,
-          fontFace: "Inter",
+          fontFace: fontFace ?? "Inter",
           align,
           valign: "top",
           wrap: true,
