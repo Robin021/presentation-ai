@@ -35,7 +35,7 @@ function slideSignature(slide?: PlateSlide): string {
 
 const PresentationEditorStaticView = React.memo(
   ({ initialContent, className, id }: PresentationEditorStaticViewProps) => {
-    const { isPresenting } = usePresentationState();
+    const { isPresenting, theme } = usePresentationState();
     const editor = useMemo(
       () =>
         createSlateEditor({
@@ -84,6 +84,7 @@ const PresentationEditorStaticView = React.memo(
         }}
         data-is-presenting={isPresenting ? "true" : "false"}
         data-slide-content="true"
+        data-theme-name={theme}
       >
         <EditorStatic
           className={cn(

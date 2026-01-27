@@ -4,11 +4,12 @@ import { generateImageAction } from "@/app/_actions/image/generate";
 import { getImageFromUnsplash } from "@/app/_actions/image/unsplash";
 import { updatePresentation } from "@/app/_actions/presentation/presentationActions";
 import { extractThinking } from "@/lib/thinking-extractor";
+import { getPorscheTemplateSlides } from "@/lib/presentation/porsche-template-slides";
 import { usePresentationState } from "@/states/presentation-state";
 import { useChat, useCompletion } from "@ai-sdk/react";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { SlideParser } from "../utils/parser";
+import { SlideParser, type PlateSlide } from "../utils/parser";
 
 function stripXmlCodeBlock(input: string): string {
   let result = input.trim();
@@ -71,6 +72,8 @@ export function PresentationGenerationManager() {
   const titleExtractedRef = useRef<boolean>(false);
   // Track in-flight image generations to prevent duplicate requests due to async state updates
   const inFlightImageGenerationsRef = useRef<Set<string>>(new Set());
+  // Track Porsche template slides to ensure they're only added once with stable IDs
+  const porscheSlidesRef = useRef<PlateSlide[] | null>(null);
 
   // Function to update slides using requestAnimationFrame
   const updateSlidesWithRAF = (): void => {
@@ -181,7 +184,18 @@ export function PresentationGenerationManager() {
         }
       }
     }
-    setSlides(mergedSlides);
+    // Check if Porsche theme is selected and prepend template slides
+    const { theme, currentPresentationTitle } = usePresentationState.getState();
+    if (theme === "porsche" && mergedSlides.length > 0) {
+      // Generate Porsche slides only once and cache them
+      if (!porscheSlidesRef.current) {
+        porscheSlidesRef.current = getPorscheTemplateSlides(currentPresentationTitle || "Presentation");
+      }
+      // Always prepend the cached Porsche slides
+      setSlides([...porscheSlidesRef.current, ...mergedSlides]);
+    } else {
+      setSlides(mergedSlides);
+    }
     slidesRafIdRef.current = null;
   };
 
@@ -491,6 +505,8 @@ export function PresentationGenerationManager() {
 
       // Reset the parser before starting a new generation
       streamingParserRef.current.reset();
+      // Reset Porsche slides ref to generate fresh template slides
+      porscheSlidesRef.current = null;
       setIsGeneratingPresentation(true);
       setThumbnailUrl(undefined);
       void generatePresentation(presentationInput ?? "", {

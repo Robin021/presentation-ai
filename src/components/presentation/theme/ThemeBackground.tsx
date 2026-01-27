@@ -67,15 +67,20 @@ export function ThemeBackground({ className, children }: ThemeBackgroundProps) {
 
   const colors = isDark ? currentTheme.colors.dark : currentTheme.colors.light;
 
+  // Porsche theme uses solid colors without gradients for brand consistency
+  const isPorsche = presentationTheme === "porsche";
+
   // Create gradient styles based on theme colors, allow override
-  const defaultBackground = isDark
-    ? `
+  const defaultBackground = isPorsche
+    ? colors.background // Solid background for Porsche
+    : isDark
+      ? `
         radial-gradient(circle at 10% 10%, ${colors.primary}20 0%, transparent 30%),
         radial-gradient(circle at 90% 20%, ${colors.accent}20 0%, transparent 40%),
         radial-gradient(circle at 50% 80%, ${colors.secondary}15 0%, transparent 50%),
         ${colors.background}
       `
-    : `
+      : `
         radial-gradient(circle at 10% 10%, ${colors.primary}15 0%, transparent 30%),
         radial-gradient(circle at 90% 20%, ${colors.accent}15 0%, transparent 40%),
         radial-gradient(circle at 50% 80%, ${colors.secondary}10 0%, transparent 50%),

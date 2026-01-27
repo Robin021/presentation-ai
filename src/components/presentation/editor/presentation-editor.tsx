@@ -59,6 +59,7 @@ const PresentationEditor = React.memo(
     isPreview = false,
   }: PresentationEditorProps) => {
     const isPresenting = usePresentationState((s) => s.isPresenting);
+    const theme = usePresentationState((s) => s.theme);
     const setCurrentSlideIndex = usePresentationState(
       (s) => s.setCurrentSlideIndex,
     );
@@ -151,6 +152,7 @@ const PresentationEditor = React.memo(
           }}
           data-is-presenting={readOnly && isPresenting ? "true" : "false"}
           data-slide-content="true"
+          data-theme-name={theme}
         >
           <FontLoader fontsToLoad={fontsToLoad} />
 

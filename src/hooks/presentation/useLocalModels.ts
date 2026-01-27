@@ -126,8 +126,8 @@ export const downloadableModels: ModelInfo[] = [
   },
 ];
 
-// Fallback models when no local models are available (same as downloadable for now)
-export const fallbackModels: ModelInfo[] = downloadableModels;
+// Fallback models when no local models are available - empty to avoid showing unconfigured models
+export const fallbackModels: ModelInfo[] = [];
 
 // localStorage keys
 const MODELS_CACHE_KEY = "presentation-models-cache";

@@ -1,4 +1,5 @@
 export type ThemeName =
+  | "porsche"
   | "daktilo"
   | "cornflower"
   | "orbit"
@@ -52,6 +53,49 @@ export interface ThemeProperties {
 export type Themes = keyof typeof themes;
 
 export const themes: Record<ThemeName, ThemeProperties> = {
+  porsche: {
+    name: "Porsche",
+    description: "Sporty and premium",
+    colors: {
+      light: {
+        primary: "#D5001C",
+        secondary: "#000000",
+        accent: "#403F45",
+        background: "#FFFFFF",
+        text: "#403F45",
+        heading: "#000000",
+        muted: "#737278",
+      },
+      dark: {
+        primary: "#D5001C",
+        secondary: "#FFFFFF",
+        accent: "#B5B4BA",
+        background: "#000000",
+        text: "#DAD9DE",
+        heading: "#FFFFFF",
+        muted: "#737278",
+      },
+    },
+    fonts: {
+      heading: "Porsche Next TT",
+      body: "Porsche Next TT",
+    },
+    borderRadius: "0.375rem",
+    transitions: {
+      default: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+    },
+    shadows: {
+      light: {
+        card: "0 4px 12px rgba(213,0,28,0.08)",
+        button: "0 4px 16px rgba(213,0,28,0.12)",
+      },
+      dark: {
+        card: "0 4px 12px rgba(213,0,28,0.15)",
+        button: "0 4px 16px rgba(213,0,28,0.2)",
+      },
+    },
+  },
+
   daktilo: {
     name: "Daktilo",
     description: "Modern and clean",

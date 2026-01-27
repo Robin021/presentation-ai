@@ -12,20 +12,10 @@ interface OutlineRequest {
   modelId?: string;
 }
 
-const outlineSystemPrompt = `You are an expert presentation outline generator. Your task is to create a comprehensive and engaging presentation outline based on the user's topic.
+// System prompt for outline generation (used after search results are obtained)
+const outlineSystemPrompt = `You are an expert presentation outline generator. Your task is to create a comprehensive and engaging presentation outline based on the user's topic and the provided research information.
 
 Current Date: {currentDate}
-
-## Your Process:
-1. **Analyze the topic** - Understand what the user wants to present
-2. **Research if needed** - Use web search to find current, relevant information that can enhance the outline
-3. **Generate outline** - Create a structured outline with the requested number of topics
-
-## Web Search Guidelines:
-- Use web search to find current statistics, recent developments, or expert insights
-- Search for information that will make the presentation more credible and engaging
-- Limit searches to 2-5 queries maximum (you decide how many are needed)
-- Focus on finding information that directly relates to the presentation topic
 
 ## Outline Requirements:
 - First generate an appropriate title for the presentation
@@ -35,6 +25,7 @@ Current Date: {currentDate}
 - Use {language} language
 - Make topics flow logically from one to another
 - Ensure topics are comprehensive and cover key aspects
+- Incorporate relevant facts and statistics from the research data
 
 ## Output Format:
 Start with the title in XML tags, then generate the outline in markdown format with each topic as a heading followed by bullet points.
@@ -50,10 +41,7 @@ Example:
 # Second Main Topic
 - Main insight for this section
 - Supporting detail or example
-- Practical application or takeaway
-
-## CRITICAL INSTRUCTION:
-After you receive the search results, you MUST immediately generate the outline using the format above. Do NOT just call tools without producing the final outline. The outline text output is REQUIRED.`;
+- Practical application or takeaway`;
 
 export async function POST(req: Request) {
   try {
@@ -101,8 +89,40 @@ export async function POST(req: Request) {
       day: "numeric",
     });
 
-    // Create model based on selection
+    // Step 1: Execute search first (before streaming)
+    console.log("[Outline] Step 1: Executing web search for:", prompt);
+    let searchResults = "";
+    try {
+      const searchResponse = await search_tool.execute({ query: prompt }, {
+        toolCallId: "outline-search",
+        messages: [],
+      });
+
+      if (Array.isArray(searchResponse)) {
+        searchResults = searchResponse.map((result: { title: string; link: string; snippet: string }) =>
+          `- ${result.title}: ${result.snippet} (Source: ${result.link})`
+        ).join("\n");
+        console.log("[Outline] Search completed, found", searchResponse.length, "results");
+      }
+    } catch (searchError) {
+      console.error("[Outline] Search failed:", searchError);
+      // Continue without search results
+    }
+
+    // Step 2: Generate outline with search results as context
+    console.log("[Outline] Step 2: Generating outline with search context");
     const model = modelPicker(modelProvider, modelId);
+
+    const userContent = searchResults
+      ? `Create a presentation outline for: ${prompt}
+
+## Research Information:
+${searchResults}
+
+Use the above research information to create a well-informed outline. Generate the complete outline now with <TITLE> and ${numberOfCards} main topics.`
+      : `Create a presentation outline for: ${prompt}
+
+Generate the complete outline now with <TITLE> and ${numberOfCards} main topics.`;
 
     const result = streamText({
       model,
@@ -113,44 +133,21 @@ export async function POST(req: Request) {
       messages: [
         {
           role: "user",
-          content: `Create a presentation outline for: ${prompt}`,
+          content: userContent,
         },
       ],
-      tools: {
-        webSearch: search_tool,
-      },
-      maxSteps: 5, // Allow up to 5 tool calls
-      toolChoice: "auto", // Let the model decide when to use tools
+      // No tools - just generate the outline directly
       onStepFinish: (step) => {
         console.log("----------------------------------------");
         console.log("[Outline] Step finished!");
         console.log("[Outline] Step type:", step.stepType);
-        console.log("[Outline] Tool calls:", step.toolCalls?.length ?? 0);
-        if (step.toolCalls && step.toolCalls.length > 0) {
-          step.toolCalls.forEach((tc, i) => {
-            console.log(`[Outline] Tool call ${i}:`, tc.toolName, JSON.stringify(tc.args));
-          });
-        }
-        console.log("[Outline] Tool results:", step.toolResults?.length ?? 0);
-        if (step.toolResults && step.toolResults.length > 0) {
-          step.toolResults.forEach((tr: any, i: number) => {
-            const result = tr.result;
-            console.log(`[Outline] Tool result ${i}:`, typeof result === 'string' ? result.substring(0, 200) + '...' : result);
-          });
-        }
+        console.log("[Outline] Text length:", step.text?.length ?? 0);
         console.log("----------------------------------------");
       },
       onFinish: (result) => {
         console.log("[Outline] ========== STREAM FINISHED ==========");
         console.log("[Outline] Text length:", result.text.length);
-        console.log("[Outline] Text (raw):", JSON.stringify(result.text));
         console.log("[Outline] Text (first 500 chars):", result.text.substring(0, 500));
-        console.log("[Outline] Total steps:", result.steps?.length ?? 0);
-        // Log each step's output
-        result.steps?.forEach((step, i) => {
-          console.log(`[Outline] Step ${i} text length:`, step.text?.length ?? 0);
-          console.log(`[Outline] Step ${i} text:`, step.text?.substring(0, 200));
-        });
         console.log("[Outline] =====================================");
       },
     });

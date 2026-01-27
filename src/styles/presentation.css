@@ -133,11 +133,9 @@
 }
 
 .presentation-heading {
-  background: linear-gradient(
-    135deg,
-    var(--presentation-primary),
-    var(--presentation-accent)
-  );
+  background: linear-gradient(135deg,
+      var(--presentation-primary),
+      var(--presentation-accent));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -145,6 +143,21 @@
   font-family: var(--presentation-heading-font);
   font-weight: bold;
   caret-color: var(--presentation-primary);
+}
+
+/* Porsche theme: Use solid heading color instead of gradient */
+[data-theme-name="porsche"] .presentation-heading {
+  background: none;
+  -webkit-background-clip: unset;
+  -webkit-text-fill-color: var(--presentation-heading);
+  background-clip: unset;
+  color: var(--presentation-heading);
+}
+
+/* Porsche theme: Use solid colors for text elements in dark mode */
+[data-theme-name="porsche"][data-theme="dark"] .presentation-heading {
+  -webkit-text-fill-color: #FFFFFF;
+  color: #FFFFFF;
 }
 
 .presentation-text {
@@ -159,6 +172,27 @@
   text-align: center;
 }
 
+/* Porsche theme: Ensure images are properly centered in both static and editor views */
+[data-theme-name="porsche"] .presentation-image-container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Porsche theme: Center image elements in editor mode (PlateElement + Resizable) */
+[data-theme-name="porsche"] [data-slate-node="element"][data-slate-void="true"] {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+/* Porsche theme: Ensure the Resizable wrapper is centered */
+[data-theme-name="porsche"] [data-resizable="true"] {
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .presentation-image-wrapper {
   display: inline-block;
   max-width: 100%;
@@ -168,6 +202,11 @@
   max-width: 100%;
   height: auto;
   border-radius: 0.5rem;
+}
+
+/* Porsche theme: Remove border-radius for sharp-cornered images (brand guidelines) */
+[data-theme-name="porsche"] .presentation-image {
+  border-radius: 0;
 }
 
 .presentation-image-caption {
