@@ -93,16 +93,28 @@ export async function POST(req: Request) {
     console.log("[Outline] Step 1: Executing web search for:", prompt);
     let searchResults = "";
     try {
-      const searchResponse = await search_tool.execute({ query: prompt }, {
-        toolCallId: "outline-search",
-        messages: [],
-      });
+      let searchResponse = "Search disabled";
+      if (search_tool.execute) {
+        searchResponse = await search_tool.execute({ query: prompt }, {
+          toolCallId: "outline-search",
+          messages: [],
+        });
+      }
 
-      if (Array.isArray(searchResponse)) {
-        searchResults = searchResponse.map((result: { title: string; link: string; snippet: string }) =>
+      let parsedResponse: any = searchResponse;
+      if (typeof searchResponse === 'string') {
+        try {
+          parsedResponse = JSON.parse(searchResponse);
+        } catch (e) {
+          console.error("Failed to parse search response JSON:", e);
+        }
+      }
+
+      if (Array.isArray(parsedResponse)) {
+        searchResults = parsedResponse.map((result: { title: string; link: string; snippet: string }) =>
           `- ${result.title}: ${result.snippet} (Source: ${result.link})`
         ).join("\n");
-        console.log("[Outline] Search completed, found", searchResponse.length, "results");
+        console.log("[Outline] Search completed, found", parsedResponse.length, "results");
       }
     } catch (searchError) {
       console.error("[Outline] Search failed:", searchError);
