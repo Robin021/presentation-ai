@@ -140,7 +140,7 @@ export const usePresentationState = create<PresentationState>((set) => ({
   theme: "mystique",
   customThemeData: null,
   imageModel: "black-forest-labs/FLUX.1-schnell-Free",
-  imageSource: "stock",
+  imageSource: "none",
   stockImageProvider: "unsplash",
   presentationStyle: "professional",
   modelProvider: "openai",
