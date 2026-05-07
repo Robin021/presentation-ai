@@ -47,11 +47,9 @@ export function ModelPicker({
   // Use cached data if available, otherwise show fallback
   const displayData = modelsData || {
     localModels: fallbackModels,
-    downloadableModels: [],
-    showDownloadable: true,
   };
 
-  const { localModels, downloadableModels, showDownloadable } = displayData;
+  const { localModels } = displayData;
 
   // Group models by provider
   const ollamaModels = localModels.filter(
@@ -60,15 +58,9 @@ export function ModelPicker({
   const lmStudioModels = localModels.filter(
     (model) => model.provider === "lmstudio",
   );
-  const downloadableOllamaModels = downloadableModels.filter(
-    (model) => model.provider === "ollama",
-  );
 
   // Helper function to create model option
-  const createModelOption = (
-    model: (typeof localModels)[0],
-    isDownloadable = false,
-  ) => ({
+  const createModelOption = (model: (typeof localModels)[0]) => ({
     id: model.id,
     label: model.name,
     displayLabel:
@@ -76,10 +68,7 @@ export function ModelPicker({
         ? `ollama ${model.name}`
         : `lm-studio ${model.name}`,
     icon: model.provider === "ollama" ? Cpu : Monitor,
-    description: isDownloadable
-      ? `Downloadable ${model.provider === "ollama" ? "Ollama" : "LM Studio"} model (will auto-download)`
-      : `Local ${model.provider === "ollama" ? "Ollama" : "LM Studio"} model`,
-    isDownloadable,
+    description: `Local ${model.provider === "ollama" ? "Ollama" : "LM Studio"} model`,
   });
 
   // Get current model value
@@ -98,7 +87,7 @@ export function ModelPicker({
 
     if (currentValue === "openai") {
       return {
-        label: "OpenAI / Custom",
+        label: "Custom Model",
         icon: Bot,
       };
     }
@@ -109,17 +98,6 @@ export function ModelPicker({
       return {
         label: localModel.name,
         icon: localModel.provider === "ollama" ? Cpu : Monitor,
-      };
-    }
-
-    // Check downloadable models
-    const downloadableModel = downloadableModels.find(
-      (model) => model.id === currentValue,
-    );
-    if (downloadableModel) {
-      return {
-        label: downloadableModel.name,
-        icon: downloadableModel.provider === "ollama" ? Cpu : Monitor,
       };
     }
 
@@ -200,10 +178,7 @@ export function ModelPicker({
               <div className="flex items-center gap-3">
                 <Bot className="h-4 w-4 flex-shrink-0" />
                 <div className="flex flex-col min-w-0">
-                  <span className="truncate text-sm">OpenAI / Custom Model</span>
-                  <span className="text-xs text-muted-foreground truncate">
-                    Uses configuration from .env
-                  </span>
+                  <span className="truncate text-sm">Custom Model</span>
                 </div>
               </div>
             </SelectItem>
@@ -261,31 +236,6 @@ export function ModelPicker({
             </SelectGroup>
           )}
 
-          {/* Downloadable Ollama Models */}
-          {showDownloadable && downloadableOllamaModels.length > 0 && (
-            <SelectGroup>
-              <SelectLabel>Downloadable Ollama Models</SelectLabel>
-              {downloadableOllamaModels.map((model) => {
-                const option = createModelOption(model, true);
-                const Icon = option.icon;
-                return (
-                  <SelectItem key={option.id} value={option.id}>
-                    <div className="flex items-center gap-3">
-                      <Icon className="h-4 w-4 flex-shrink-0" />
-                      <div className="flex flex-col min-w-0">
-                        <span className="truncate text-sm">
-                          {option.displayLabel}
-                        </span>
-                        <span className="text-xs text-muted-foreground truncate">
-                          {option.description}
-                        </span>
-                      </div>
-                    </div>
-                  </SelectItem>
-                );
-              })}
-            </SelectGroup>
-          )}
         </SelectContent>
       </Select>
     </div>
