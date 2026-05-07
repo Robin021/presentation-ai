@@ -16,7 +16,7 @@ interface SlidesRequest {
   imageSource?: string; // 'ai', 'stock', or 'none'
 }
 // TODO: Add table and chart to the available layouts
-const slidesTemplate = `
+let slidesTemplate = `
 You are an expert presentation designer.Your task is to create an engaging presentation in XML format.
 ## CORE REQUIREMENTS
 
@@ -314,7 +314,7 @@ export async function POST(req: Request) {
     // If image generation is disabled, prioritize text-heavy layouts and remove image requirements
     if (imageSource === "none") {
       layoutGuidelines = `
-5. Use layout="keyboard" for all sections to optimize for text-only content`;
+5. Use layout="text-only" for all sections to optimize for text-only content`;
 
       imageGuidelines = `
 4. DO NOT include image queries since image generation is disabled. Focus on rich text content.`;
@@ -324,6 +324,14 @@ export async function POST(req: Request) {
 45:   <!-- Required: include ONE layout component per slide -->
 46:   <!-- DO NOT include image queries -->
 47: </SECTION>`;
+
+      // Also remove the IMG examples from the template
+      slidesTemplate = slidesTemplate.replace(/9\. IMAGES.*?```\n\n/s, '');
+      // Update the core requirement to remove image references
+      slidesTemplate = slidesTemplate.replace(
+        /4\. VISUALS: Include detailed image queries \(10\+ words\) on every slide/,
+        '4. TEXT-ONLY: Focus on rich text content — no images needed'
+      );
     }
 
     // Format the prompt with template variables

@@ -184,7 +184,7 @@ export class PlateJSToPPTXConverter {
     }
 
     // Add root image first (no margins/padding as requested)
-    if (slide.rootImage) {
+    if (slide.rootImage?.url) {
       // Skip root image for text-only layout
       if (slide.layoutType !== "text-only") {
         await this.addRootImage(slide.rootImage, slide.layoutType);
@@ -211,7 +211,7 @@ export class PlateJSToPPTXConverter {
       h: this.SLIDE_HEIGHT - this.MARGIN * 2,
     };
 
-    if (!slide.rootImage || !slide.layoutType) {
+    if (!slide.rootImage?.url || !slide.layoutType) {
       return baseArea;
     }
 
