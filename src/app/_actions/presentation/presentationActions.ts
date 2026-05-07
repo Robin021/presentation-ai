@@ -255,6 +255,21 @@ export async function getPresentation(id: string) {
       },
     });
 
+    if (!presentation) {
+      return {
+        success: false,
+        message: "Presentation not found",
+      };
+    }
+
+    // Ensure users can only access their own presentations (unless public)
+    if (presentation.userId !== session.user.id && !presentation.isPublic) {
+      return {
+        success: false,
+        message: "Unauthorized access",
+      };
+    }
+
     return {
       success: true,
       presentation,

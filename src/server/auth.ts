@@ -160,19 +160,34 @@ export const auth = async () => {
     const session = await result.auth();
     if (session) return session;
 
-    // Use default admin user
-    const email = "admin@local.com";
+    // Anonymous fallback: use a cookie-based anonymous ID for data isolation
+    // Each browser gets its own anonymous user, so presentations are never shared
+    const { cookies } = await import("next/headers");
+    const cookieStore = await cookies();
+    let anonId = cookieStore.get("anon_user_id")?.value;
+
+    if (!anonId) {
+        anonId = crypto.randomUUID();
+        cookieStore.set("anon_user_id", anonId, {
+            maxAge: 60 * 60 * 24 * 365, // 1 year
+            path: "/",
+            sameSite: "lax",
+        });
+    }
+
+    // Find or create an anonymous user tied to this cookie
+    const email = `anon-${anonId}@anonymous.local`;
     let user = await db.user.findUnique({ where: { email } });
-    
+
     if (!user) {
         user = await db.user.create({
             data: {
                 email,
-                password: "password",
-                name: "Local Admin",
-                role: "ADMIN",
+                password: crypto.randomUUID(),
+                name: `User-${anonId.slice(0, 8)}`,
+                role: "USER",
                 hasAccess: true,
-                image: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
+                image: `https://api.dicebear.com/7.x/avataaars/svg?seed=${anonId}`,
             },
         });
     }
