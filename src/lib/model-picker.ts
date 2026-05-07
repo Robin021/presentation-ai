@@ -4,11 +4,24 @@ import { createOllama } from "ollama-ai-provider";
 import { env } from "@/env";
 
 /**
- * Create a patched fetch that fixes tool_calls missing index field for Qwen/OpenAI-compatible APIs
+ * Create a patched fetch that fixes tool_calls missing index field and
+ * injects chat_template_kwargs to disable thinking for Qwen/OpenAI-compatible APIs
  */
 function createPatchedFetch(): typeof fetch {
   return (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    return fetch(input, init).then(response => {
+    // Intercept the request to inject chat_template_kwargs
+    let modifiedInit = init;
+    if (init?.body && typeof init.body === 'string') {
+      try {
+        const body = JSON.parse(init.body);
+        body.chat_template_kwargs = { enable_thinking: false };
+        modifiedInit = { ...init, body: JSON.stringify(body) };
+      } catch {
+        // Not JSON, leave body as-is
+      }
+    }
+
+    return fetch(input, modifiedInit).then(response => {
       // Only process streaming responses
       if (!response.body || !response.headers.get('content-type')?.includes('text/event-stream')) {
         return response;
