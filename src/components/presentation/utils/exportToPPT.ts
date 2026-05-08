@@ -95,7 +95,7 @@ export class PlateJSToPPTXConverter {
   private readonly SLIDE_HEIGHT = 5.625;
   private readonly MARGIN = 0.5;
   private readonly COLUMN_GAP = 0.15; // Gap between columns
-  private readonly ELEMENT_SPACING = 0.1; // Spacing between elements
+  private readonly ELEMENT_SPACING = 0.15; // Spacing between elements
 
   // Theme defaults (mirror src/styles/presentation.css light variables)
   private THEME: ThemeColors = {
@@ -107,6 +107,16 @@ export class PlateJSToPPTXConverter {
     heading: "111827",
     muted: "6B7280",
   };
+
+  // Map theme-specific fonts to visually similar PPT-safe alternatives
+  private readonly FONT_SUBSTITUTIONS: Record<string, string> = {
+    "Porsche Next TT": "Montserrat",
+    "Porsche Next TT Bold": "Montserrat",
+  };
+
+  private substituteFont(font: string): string {
+    return this.FONT_SUBSTITUTIONS[font] || font;
+  }
 
   // SVG definitions from the PlateJS components
   private readonly SVG_DEFINITIONS = {
@@ -139,9 +149,10 @@ export class PlateJSToPPTXConverter {
 
   private setupPresentation(fontFace?: string) {
     this.pptx.layout = "LAYOUT_16x9";
+    const resolvedFont = fontFace ? this.substituteFont(fontFace) : "Inter";
     this.pptx.theme = {
-      headFontFace: fontFace ?? "Inter",
-      bodyFontFace: fontFace ?? "Inter",
+      headFontFace: resolvedFont,
+      bodyFontFace: resolvedFont,
     };
   }
 
@@ -569,7 +580,7 @@ export class PlateJSToPPTXConverter {
     fontSize: number,
     measureOnly = false,
   ): number {
-    const height = Math.max(fontSize / 72 + 0.3, 0.8);
+    const height = Math.max(fontSize / 72 + 0.4, 1.0);
     if (measureOnly) return height;
 
     const runs = this.extractTextRuns(element);
@@ -620,11 +631,11 @@ export class PlateJSToPPTXConverter {
     if (!text.trim()) return 0.15;
 
     // Dynamic height calculation with reasonable limits
-    const fontSize = 11;
-    const charsPerInch = 18; // More chars per inch with smaller font
+    const fontSize = 14;
+    const charsPerInch = 14; // Fewer chars per inch with larger font
     const estimatedLines = Math.ceil(text.length / (width * charsPerInch));
-    const lineHeight = 0.2;
-    const calculatedHeight = Math.max(0.3, Math.min(1.5, estimatedLines * lineHeight));
+    const lineHeight = 0.28; // Taller lines for larger text
+    const calculatedHeight = Math.max(0.4, Math.min(2.0, estimatedLines * lineHeight));
 
     if (measureOnly) return calculatedHeight;
 
@@ -757,10 +768,11 @@ export class PlateJSToPPTXConverter {
               y: bulletY,
               w: contentWidth,
               h: itemHeight - 0.1,
-              fontSize: 10,
+              fontSize: 14,
               valign: "top",
               align: "left",
               color: this.THEME.text,
+              lineSpacingMultiple: 1.3,
               fit: "shrink",
               wrap: true,
             });
@@ -770,7 +782,7 @@ export class PlateJSToPPTXConverter {
               y: bulletY,
               w: contentWidth,
               h: itemHeight - 0.1,
-              fontSize: 10,
+              fontSize: 14,
               valign: "top",
               align: "left",
               color: this.THEME.text,
@@ -924,10 +936,11 @@ export class PlateJSToPPTXConverter {
           y: currentY,
           w: contentWidth,
           h: itemHeight,
-          fontSize: 10,
+          fontSize: 12,
           valign: "middle",
           align: "left",
           color: this.THEME.text,
+          lineSpacingMultiple: 1.3,
           fit: "shrink",
           wrap: true,
         });
@@ -1016,16 +1029,16 @@ export class PlateJSToPPTXConverter {
           }
         }
 
-        // Add title (italic, accent color) - only if we found a title
+        // Add title (bold, heading color) - only if we found a title
         if (title) {
           this.currentSlide?.addText(title, {
             x: textAreaX,
             y: currentY,
             w: textAreaWidth,
-            h: itemHeight * 0.35,
-            fontSize: 11,
-            italic: true,
-            color: this.THEME.accent,
+            h: itemHeight * 0.4,
+            fontSize: 14,
+            bold: true,
+            color: this.THEME.heading,
             valign: "bottom",
             align: "left",
           });
@@ -1033,13 +1046,14 @@ export class PlateJSToPPTXConverter {
           // Add description below title
           this.currentSlide?.addText(description, {
             x: textAreaX,
-            y: currentY + itemHeight * 0.35,
+            y: currentY + itemHeight * 0.4,
             w: textAreaWidth,
-            h: itemHeight * 0.65,
-            fontSize: 9,
+            h: itemHeight * 0.6,
+            fontSize: 12,
             color: this.THEME.text,
             valign: "top",
             align: "left",
+            lineSpacingMultiple: 1.3,
             fit: "shrink",
             wrap: true,
           });
@@ -1050,10 +1064,11 @@ export class PlateJSToPPTXConverter {
             y: currentY,
             w: textAreaWidth,
             h: itemHeight,
-            fontSize: 10,
+            fontSize: 12,
             color: this.THEME.text,
             valign: "middle",
             align: "left",
+            lineSpacingMultiple: 1.3,
             fit: "shrink",
             wrap: true,
           });
@@ -1180,10 +1195,11 @@ export class PlateJSToPPTXConverter {
             y: currentY + 0.02,
             w: contentWidth,
             h: itemHeight - 0.04,
-            fontSize: 9,
+            fontSize: 12,
             valign: "middle",
             align: "left",
             color: this.THEME.text,
+            lineSpacingMultiple: 1.3,
             fit: "shrink",
             wrap: true,
           });
@@ -1247,7 +1263,7 @@ export class PlateJSToPPTXConverter {
             y: currentY - 0.1,
             w: contentW - 0.2,
             h: 0.6,
-            fontSize: 11,
+            fontSize: 12,
             valign: "middle",
             align: "left",
           });
@@ -1319,7 +1335,7 @@ export class PlateJSToPPTXConverter {
             y: lineY + 0.55,
             w: itemWidth * 0.7,
             h: 0.5,
-            fontSize: 10,
+            fontSize: 12,
             align: "left",
             valign: "middle",
           });
@@ -1395,7 +1411,7 @@ export class PlateJSToPPTXConverter {
             y: boxY + 0.05,
             w: itemWidth * 0.7,
             h: 0.5,
-            fontSize: 10,
+            fontSize: 12,
             align: "left",
             valign: "middle",
           });
@@ -1477,7 +1493,7 @@ export class PlateJSToPPTXConverter {
           y: Math.max(y, textY),
           w: 1.6,
           h: 0.4,
-          fontSize: 10,
+          fontSize: 12,
           align: "center",
           valign: "middle",
         });
@@ -1570,10 +1586,11 @@ export class PlateJSToPPTXConverter {
             y: currentY,
             w: contentWidth,
             h: numberWidth, // default to align with box
-            fontSize: 10,
+            fontSize: 12,
             valign: "top",
             align: "left",
             color: this.THEME.text,
+            lineSpacingMultiple: 1.3,
             fit: "resize",
             wrap: true,
           });
@@ -1628,9 +1645,10 @@ export class PlateJSToPPTXConverter {
           y: itemY + 0.8,
           w: columnWidth,
           h: 0.5,
-          fontSize: 11,
+          fontSize: 12,
           align: "center",
           valign: "middle",
+          lineSpacingMultiple: 1.3,
         });
       }
 
@@ -1846,6 +1864,7 @@ export class PlateJSToPPTXConverter {
     const options: PptxGenJS.TextPropsOptions = {
       fontSize,
       color: this.THEME.text,
+      lineSpacingMultiple: 1.4,
     };
 
     // Extract text styling from first text node
@@ -1862,7 +1881,7 @@ export class PlateJSToPPTXConverter {
         }>;
       if (typeof firstChild === "object" && firstChild) {
         if (typeof firstChild.fontFamily === "string")
-          options.fontFace = firstChild.fontFamily as string;
+          options.fontFace = this.substituteFont(firstChild.fontFamily as string);
         if (
           typeof firstChild.fontSize === "number" ||
           typeof firstChild.fontSize === "string"
@@ -1881,7 +1900,7 @@ export class PlateJSToPPTXConverter {
       }
     }
 
-    // Ensure default Inter fallback if not set via marks
+    // Ensure default fallback
     if (!options.fontFace) options.fontFace = "Inter";
 
     return options;
@@ -1910,7 +1929,7 @@ export class PlateJSToPPTXConverter {
         if (node.strikethrough) runOptions.strike = true;
         // Font family per-run
         if (typeof node.fontFamily === "string" && node.fontFamily.trim()) {
-          runOptions.fontFace = node.fontFamily.trim();
+          runOptions.fontFace = this.substituteFont(node.fontFamily.trim());
         }
         // Font size per-run
         if (
