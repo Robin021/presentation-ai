@@ -55,14 +55,48 @@ export async function GET(request: NextRequest) {
     }
 
     const slide = slides[slideIndex];
-    // Allow the client to override the theme (used by the client-side html2canvas export)
-    const queryThemeName = searchParams.get("themeName");
-    const queryThemeDark = searchParams.get("themeDark") === "true";
-    const dbThemeName = (presentation.presentation as { themeName?: string })?.themeName ?? "default";
-    const resolvedThemeName = (queryThemeName && queryThemeName in themes) ? queryThemeName : dbThemeName;
-    const themeColors = themes[resolvedThemeName as keyof typeof themes]?.colors?.[queryThemeDark ? "dark" : "light"] ?? themes.daktilo.colors.light;
 
-    const html = generateSlideHTML(slide, themeColors, slideIndex, mode);
+    // Read optional theme overrides from client (preferred path)
+    const overridePrimary = searchParams.get("primary");
+    const overrideBackground = searchParams.get("background");
+    const overrideText = searchParams.get("text");
+    const overrideHeading = searchParams.get("heading");
+    const overrideMuted = searchParams.get("muted");
+    const overrideSecondary = searchParams.get("secondary");
+    const overrideAccent = searchParams.get("accent");
+    const fontHeading = searchParams.get("fontHeading") || undefined;
+    const fontBody = searchParams.get("fontBody") || undefined;
+    const isDark = searchParams.get("isDark") === "1";
+
+    // Determine theme colors: prefer client-provided overrides, fall back to DB
+    const themeColors: ThemeColors = (() => {
+      if (overridePrimary && overrideBackground) {
+        return {
+          primary: overridePrimary,
+          secondary: overrideSecondary || overridePrimary,
+          accent: overrideAccent || overridePrimary,
+          background: overrideBackground,
+          text: overrideText || "#1F2937",
+          heading: overrideHeading || "#111827",
+          muted: overrideMuted || "#6B7280",
+        };
+      }
+      // Fallback: resolve from DB — the field is 'theme', not 'themeName'
+      const themeKey =
+        (presentation.presentation as { theme?: string })?.theme ?? "daktilo";
+      const themeObj = themes[themeKey as keyof typeof themes];
+      return themeObj?.colors?.light ?? themes.daktilo.colors.light;
+    })();
+
+    const html = generateSlideHTML(
+      slide,
+      themeColors,
+      slideIndex,
+      mode,
+      fontHeading,
+      fontBody,
+      isDark,
+    );
 
     return new NextResponse(html, {
       headers: {
@@ -92,10 +126,46 @@ function generateSlideHTML(
   slide: PlateSlide,
   themeColors: ThemeColors,
   slideIndex: number,
-  mode: string
+  mode: string,
+  fontHeading?: string,
+  fontBody?: string,
+  isDark?: boolean,
 ): string {
   const slideData = JSON.stringify(slide);
   const themeData = JSON.stringify(themeColors);
+
+  // Build Google Fonts links based on theme fonts
+  const googleFontsMap: Record<string, string> = {
+    Inter: "Inter",
+    Poppins: "Poppins",
+    "Source Sans Pro": "Source+Sans+Pro",
+    "Space Grotesk": "Space+Grotesk",
+    "IBM Plex Sans": "IBM+Plex+Sans",
+    "Playfair Display": "Playfair+Display",
+    Lora: "Lora",
+    Montserrat: "Montserrat",
+    Raleway: "Raleway",
+    "JetBrains Mono": "JetBrains+Mono",
+    Merriweather: "Merriweather",
+    "DM Serif Display": "DM+Serif+Display",
+    "DM Sans": "DM+Sans",
+    Bitter: "Bitter",
+  };
+  const loadedFonts = new Set<string>();
+  const fontLinkTags: string[] = [];
+  const addFont = (name: string) => {
+    if (!name || loadedFonts.has(name)) return;
+    const encoded = googleFontsMap[name];
+    if (!encoded) return; // Not a Google Font (e.g. "Porsche Next TT")
+    loadedFonts.add(name);
+    fontLinkTags.push(
+      `<link href="https://fonts.googleapis.com/css2?family=${encoded}:wght@400;500;600;700&display=swap" rel="stylesheet">`,
+    );
+  };
+  addFont("Inter");
+  if (fontHeading) addFont(fontHeading);
+  if (fontBody && fontBody !== fontHeading) addFont(fontBody);
+  const fontLinksStr = fontLinkTags.join("\n      ");
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -105,7 +175,7 @@ function generateSlideHTML(
   <title>Slide ${slideIndex + 1} - Export</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  ${fontLinksStr}
   <style>
     * {
       margin: 0;
@@ -117,7 +187,7 @@ function generateSlideHTML(
       width: 1920px;
       height: 1080px;
       overflow: hidden;
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: '${fontBody || "Inter"}', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
     }
@@ -131,7 +201,12 @@ function generateSlideHTML(
       --presentation-heading: ${themeColors.heading};
       --presentation-muted: ${themeColors.muted};
       --presentation-border-radius: 0.5rem;
-      --border: ${themeColors.muted}40;
+      --border: ${themeColors.muted};
+      --chart-1: 215 100% 60%;
+      --chart-2: 270 100% 65%;
+      --chart-3: 330 100% 60%;
+      --chart-4: 160 100% 40%;
+      --chart-5: 30 100% 55%;
     }
 
     body {
@@ -154,7 +229,7 @@ function generateSlideHTML(
         slide.layoutType === 'left' ? 'row-reverse' : 'row'};
       background-color: ${slide.bgColor || themeColors.background};
       ${slide.layoutType === 'background' && slide.rootImage?.url ?
-        `background-image: url("${slide.rootImage.url}"); background-size: cover; background-position: center; background-repeat: no-repeat;` : ''}
+        `background-image: url(${slide.rootImage.url}); background-size: cover; background-position: center;` : ''}
     }
 
     .content-area {
@@ -172,7 +247,6 @@ function generateSlideHTML(
       flex: 0 0 45%;
       background-size: cover;
       background-position: center;
-      background-repeat: no-repeat;
     }
 
     /* === Shared Element Styles === */
@@ -195,7 +269,7 @@ function generateSlideHTML(
     }
     .chart-container {
       background: var(--presentation-background);
-      border: 1px solid hsl(var(--border));
+      border: 1px solid var(--border);
       border-radius: 8px;
       padding: 16px;
       margin: 8px 0;
@@ -582,7 +656,7 @@ function generateSlideHTML(
     }
     .box-item {
       border-radius: 6px;
-      border: 1px solid hsl(var(--border));
+      border: 1px solid var(--border);
       padding: 16px;
     }
 
@@ -618,7 +692,7 @@ function generateSlideHTML(
     .compare-card {
       width: 100%;
       border-radius: 12px;
-      border: 1px solid hsl(var(--border));
+      border: 1px solid var(--border);
       padding: 20px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.08);
       border-top: 4px solid var(--presentation-primary);
@@ -656,7 +730,7 @@ function generateSlideHTML(
       width: 100%;
       max-width: 520px;
       border-radius: 12px;
-      border: 1px solid hsl(var(--border));
+      border: 1px solid var(--border);
       padding: 20px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.08);
       border-top: 4px solid var(--presentation-primary);
@@ -730,12 +804,12 @@ function generateSlideHTML(
       border-collapse: collapse;
       border-radius: 8px;
       overflow: hidden;
-      border: 1px solid hsl(var(--border));
+      border: 1px solid var(--border);
       background: var(--presentation-background);
     }
     .export-table th, .export-table td {
       padding: 12px;
-      border: 1px solid hsl(var(--border));
+      border: 1px solid var(--border);
       text-align: left;
       font-size: 16px;
     }
@@ -817,12 +891,12 @@ function generateSlideHTML(
     .chart-data-table th {
       padding: 6px 12px;
       text-align: left;
-      border-bottom: 2px solid hsl(var(--border));
+      border-bottom: 2px solid var(--border);
       font-weight: 600;
     }
     .chart-data-table td {
       padding: 6px 12px;
-      border-bottom: 1px solid hsl(var(--border));
+      border-bottom: 1px solid var(--border);
     }
 
     /* === Loading === */
@@ -1168,7 +1242,7 @@ function generateSlideHTML(
       var html = '<div class="boxes-grid" data-element-type="boxes">';
       for (var i = 0; i < children.length; i++) {
         var innerHtml = renderChildren(children[i].children || []);
-        html += '<div class="box-item" data-element-type="box-item" style="background:' + color + ';color:var(--presentation-background);border-color:hsl(var(--border))">' + innerHtml + '</div>';
+        html += '<div class="box-item" data-element-type="box-item" style="background:' + color + ';color:var(--presentation-background);border-color:var(--border)">' + innerHtml + '</div>';
       }
       html += '</div>';
       return html;
@@ -1433,7 +1507,7 @@ function generateSlideHTML(
 
       // Image area for left/right/vertical layouts
       if (slideData.rootImage && slideData.rootImage.url && slideData.layoutType && slideData.layoutType !== 'background') {
-        html += '<div class="image-area" style="background-image: url(\'' + slideData.rootImage.url + '\')"></div>';
+        html += '<div class="image-area" style="background-image: url(' + slideData.rootImage.url + ')"></div>';
       }
 
       container.innerHTML = html;

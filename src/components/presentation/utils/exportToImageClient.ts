@@ -12,32 +12,43 @@ export async function exportPresentationAsImagesClient(
   presentationId: string,
   totalSlides: number,
   fileName?: string,
-  themeName?: string,
-  isDark?: boolean,
+  themeOptions?: {
+    themeColors: {
+      primary: string;
+      secondary: string;
+      accent: string;
+      background: string;
+      text: string;
+      heading: string;
+      muted: string;
+    };
+    headingFont?: string;
+    bodyFont?: string;
+    isDark?: boolean;
+  },
 ): Promise<void> {
   const pptx = new PptxGenJS();
   pptx.layout = "LAYOUT_16x9";
   pptx.title = fileName || "Presentation";
 
   for (let i = 0; i < totalSlides; i++) {
-    // Fetch slide HTML from the same-origin render API with theme parameters
-    const params = new URLSearchParams({
-      id: presentationId,
-      slideIndex: i.toString(),
-      mode: "html",
-    });
-    
-    // Pass theme information to ensure consistent rendering
-    if (themeName) {
-      params.append("themeName", themeName);
+    // Build URL with theme color overrides from the client
+    let url = `/api/presentation/export-render?id=${presentationId}&slideIndex=${i}&mode=html`;
+    if (themeOptions) {
+      const { themeColors, headingFont, bodyFont, isDark } = themeOptions;
+      url += `&primary=${encodeURIComponent(themeColors.primary)}`;
+      url += `&secondary=${encodeURIComponent(themeColors.secondary)}`;
+      url += `&accent=${encodeURIComponent(themeColors.accent)}`;
+      url += `&background=${encodeURIComponent(themeColors.background)}`;
+      url += `&text=${encodeURIComponent(themeColors.text)}`;
+      url += `&heading=${encodeURIComponent(themeColors.heading)}`;
+      url += `&muted=${encodeURIComponent(themeColors.muted)}`;
+      if (headingFont) url += `&fontHeading=${encodeURIComponent(headingFont)}`;
+      if (bodyFont) url += `&fontBody=${encodeURIComponent(bodyFont)}`;
+      if (isDark) url += `&isDark=1`;
     }
-    if (isDark !== undefined) {
-      params.append("themeDark", isDark.toString());
-    }
-    
-    const res = await fetch(
-      `/api/presentation/export-render?${params.toString()}`,
-    );
+
+    const res = await fetch(url);
     if (!res.ok) {
       throw new Error(`Failed to load slide ${i + 1} (${res.status})`);
     }
@@ -83,38 +94,21 @@ export async function exportPresentationAsImagesClient(
     } catch {
       // Font loading is non-critical
     }
-    
-    // Wait longer for images and fonts to fully load
-    await new Promise((r) => setTimeout(r, 2000));
-    
-    // Ensure all images are loaded
-    const images = iframe.contentDocument?.querySelectorAll('img') || [];
-    await Promise.all(
-      Array.from(images).map((img) => {
-        if (img.complete) return Promise.resolve();
-        return new Promise((resolve) => {
-          img.onload = () => resolve(null);
-          img.onerror = () => resolve(null);
-          // Timeout after 5 seconds
-          setTimeout(() => resolve(null), 5000);
-        });
-      })
-    );
+    await new Promise((r) => setTimeout(r, 1000));
 
-    // Capture the slide as a JPEG image with higher quality
+    // Capture the slide as a JPEG image
     const canvas = await html2canvas(
       iframe.contentDocument!.documentElement,
       {
-        scale: 2, // Increase scale for better quality
+        scale: 1,
         useCORS: true,
-        backgroundColor: "#ffffff",
+        backgroundColor: null, // preserve slide background from the rendered HTML
         width: 1920,
         height: 1080,
         logging: false,
         // Allow html2canvas to traverse into foreignObject / shadow roots
         // that the slide renderer may produce
         allowTaint: false,
-        imageTimeout: 15000, // Increase image loading timeout
       },
     );
 

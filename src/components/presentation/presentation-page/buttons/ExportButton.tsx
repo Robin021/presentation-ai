@@ -52,22 +52,51 @@ export function ExportButton({
   const handleImageExport = async () => {
     setIsExporting(true);
     try {
-      const slides = usePresentationState.getState().slides;
-      const currentTheme = usePresentationState.getState().theme;
+      const state = usePresentationState.getState();
+      const slides = state.slides;
       const isDark = resolvedTheme === "dark";
 
-      // Determine theme name to pass
-      let themeNameToPass: string | undefined;
-      if (typeof currentTheme === "string") {
-        themeNameToPass = currentTheme;
-      }
+      // Compute theme colors (same logic as editable export)
+      const themeOptions = (() => {
+        const rawColors = (() => {
+          if (state.customThemeData) {
+            return isDark
+              ? state.customThemeData.colors.dark
+              : state.customThemeData.colors.light;
+          }
+          if (typeof state.theme === "string" && state.theme in themes) {
+            const t = themes[state.theme as keyof typeof themes];
+            return isDark ? t.colors.dark : t.colors.light;
+          }
+          return null;
+        })();
+
+        if (!rawColors) return undefined;
+
+        const headingFont = (() => {
+          if (state.customThemeData) return state.customThemeData.fonts.heading;
+          if (typeof state.theme === "string" && state.theme in themes) {
+            return themes[state.theme as keyof typeof themes].fonts.heading;
+          }
+          return undefined;
+        })();
+
+        const bodyFont = (() => {
+          if (state.customThemeData) return state.customThemeData.fonts.body;
+          if (typeof state.theme === "string" && state.theme in themes) {
+            return themes[state.theme as keyof typeof themes].fonts.body;
+          }
+          return undefined;
+        })();
+
+        return { themeColors: rawColors, headingFont, bodyFont, isDark };
+      })();
 
       await exportPresentationAsImagesClient(
         presentationId,
         slides.length,
         fileName,
-        themeNameToPass,
-        isDark,
+        themeOptions,
       );
 
       toast({
