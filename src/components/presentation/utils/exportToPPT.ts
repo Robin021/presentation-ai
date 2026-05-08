@@ -698,7 +698,27 @@ export class PlateJSToPPTXConverter {
     const gap = this.COLUMN_GAP;
     const totalGapWidth = gap * (columns - 1);
     const columnWidth = (width - totalGapWidth) / columns;
-    const itemHeight = 1.3; // Row height for each bullet row
+
+    // Measure actual content height for each bullet
+    const bulletHeights: number[] = await Promise.all(
+      bullets.map(async (bullet) => {
+        const b = bullet as TBulletItemElement;
+        const cw = columnWidth - 0.55;
+        const hasBlocks = b.children?.some((child) =>
+          ['h1','h2','h3','h4','h5','h6','p','bullets','img','image','div'].includes((child as any).type)
+        );
+        if (hasBlocks && b.children) {
+          let h = 0;
+          for (const child of b.children) {
+            h += await this.processElement(child as PlateNode, 0, 0, cw, true);
+          }
+          return Math.max(h, 0.5);
+        }
+        const text = this.extractText(b);
+        const estLines = Math.ceil(text.length / (cw * 16));
+        return Math.max(0.5, Math.min(2.0, estLines * 0.24));
+      }),
+    );
 
     let maxHeight = 0;
 
@@ -706,9 +726,11 @@ export class PlateJSToPPTXConverter {
       const bullet = bullets[i] as TBulletItemElement;
       const columnIndex = i % columns;
       const rowIndex = Math.floor(i / columns);
+      // Use measured content height for this bullet
+      const actualHeight = Math.max(bulletHeights[i] ?? 1.3, 1.3);
 
       const bulletX = x + columnIndex * (columnWidth + gap);
-      const bulletY = y + rowIndex * itemHeight;
+      const bulletY = y + Math.max(0, actualHeight - 1.3) / 2; // center if tall
 
       if (!measureOnly) {
         // Add bullet number box
@@ -727,7 +749,7 @@ export class PlateJSToPPTXConverter {
           y: bulletY,
           w: 0.4,
           h: 0.4,
-          fontSize: 12,
+          fontSize: 14,
           bold: true,
           color: "FFFFFF",
           align: "center",
@@ -736,7 +758,7 @@ export class PlateJSToPPTXConverter {
 
         // Add bullet content
         const contentX = bulletX + 0.5;
-        const contentWidth = columnWidth - 0.55; // Space after number box
+        const contentWidth = columnWidth - 0.55;
 
         // Check if bullet contains block elements
         const hasBlockChildren = bullet.children && bullet.children.some((child) =>
@@ -746,14 +768,12 @@ export class PlateJSToPPTXConverter {
         if (hasBlockChildren) {
           let currentContentY = bulletY;
           for (const child of bullet.children) {
-            // Process block elements recursively
-            // We pass measureOnly=false since we are in the draw phase (unless addBullets called with measureOnly)
             const h = await this.processElement(
               child as PlateNode,
               contentX,
               currentContentY,
               contentWidth,
-              measureOnly
+              measureOnly,
             );
             currentContentY += h;
           }
@@ -761,13 +781,12 @@ export class PlateJSToPPTXConverter {
           // Fallback to text run extraction for simple bullets
           const bulletRuns = this.extractTextRuns(bullet);
           const bulletText = this.extractText(bullet);
-
           if (bulletRuns.length > 0) {
             this.currentSlide?.addText(bulletRuns, {
               x: contentX,
               y: bulletY,
               w: contentWidth,
-              h: itemHeight - 0.1,
+              h: actualHeight,
               fontSize: 14,
               valign: "top",
               align: "left",
@@ -781,7 +800,7 @@ export class PlateJSToPPTXConverter {
               x: contentX,
               y: bulletY,
               w: contentWidth,
-              h: itemHeight - 0.1,
+              h: actualHeight,
               fontSize: 14,
               valign: "top",
               align: "left",
@@ -794,7 +813,7 @@ export class PlateJSToPPTXConverter {
 
       }
 
-      maxHeight = Math.max(maxHeight, (rowIndex + 1) * itemHeight);
+      maxHeight = Math.max(maxHeight, (rowIndex + 1) * Math.max(actualHeight, 1.3));
     }
 
     return maxHeight + 0.3;
@@ -819,11 +838,20 @@ export class PlateJSToPPTXConverter {
     let currentX = x;
     let maxHeight = 0;
 
+    // Map named column widths to percentages
+    const COLUMN_WIDTH_MAP: Record<string, number> = {
+      S: 25, M: 50, L: 75, XL: 100,
+    };
+
     for (let i = 0; i < columns.length; i++) {
       const columnElement = columns[i] as TColumnElement;
+      const equalShare = 100 / columns.length;
       // Use provided width or distribute equally
-      const rawPercent = parseFloat(columnElement.width || String(100 / columns.length));
-      const columnWidth = availableWidth * (rawPercent / 100);
+      const rawStr = columnElement.width || String(equalShare);
+      const rawPercent = COLUMN_WIDTH_MAP[rawStr] ?? parseFloat(rawStr);
+      // Guard against NaN from unrecognized named values (e.g. "M" in PlateJS)
+      const validPercent = isFinite(rawPercent) ? rawPercent : equalShare;
+      const columnWidth = availableWidth * (validPercent / 100);
 
       let columnHeight = 0;
       let columnY = y;
