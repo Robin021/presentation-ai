@@ -170,6 +170,27 @@ function generateSlideHTML(
   if (fontBody && fontBody !== fontHeading) addFont(fontBody);
   const fontLinksStr = fontLinkTags.join("\n      ");
 
+  // Build @font-face declarations for local TTF fonts
+  const localFonts: Array<{ family: string; url: string }> = [];
+  const ttfFontMap: Record<string, string> = {
+    "Porsche Next TT": "/fonts/porsche-next.ttf",
+    "Porsche Next": "/fonts/porsche-next.ttf",
+  };
+  const addLocalFont = (name: string) => {
+    if (!name || localFonts.some((f) => f.family === name)) return;
+    const ttfPath = ttfFontMap[name];
+    if (!ttfPath) return;
+    localFonts.push({ family: name, url: baseUrl + ttfPath });
+  };
+  if (fontHeading) addLocalFont(fontHeading);
+  if (fontBody) addLocalFont(fontBody);
+  const fontFaceDeclarations = localFonts
+    .map(
+      (f) =>
+        `@font-face{font-family:'${f.family}';src:url('${f.url}') format('truetype');font-weight:normal;font-style:normal;}`,
+    )
+    .join("");
+
   // Scan slide for SVG images and inline their content (html2canvas doesn't support SVG <img>)
   const svgContentMap: Record<string, string> = {};
   const scanForSVGs = (nodes: unknown[]): void => {
@@ -216,6 +237,7 @@ function generateSlideHTML(
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   ${fontLinksStr}
   <style>
+    ${fontFaceDeclarations}
     * {
       margin: 0;
       padding: 0;

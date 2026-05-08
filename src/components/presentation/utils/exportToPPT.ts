@@ -110,8 +110,8 @@ export class PlateJSToPPTXConverter {
 
   // Map theme-specific fonts to visually similar PPT-safe alternatives
   private readonly FONT_SUBSTITUTIONS: Record<string, string> = {
-    "Porsche Next TT": "Montserrat",
-    "Porsche Next TT Bold": "Montserrat",
+    "Porsche Next TT": "Porsche Next",
+    "Porsche Next TT Bold": "Porsche Next",
   };
 
   private substituteFont(font: string): string {
