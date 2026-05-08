@@ -39,21 +39,20 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV SKIP_ENV_VALIDATION=1
 RUN pnpm build
 
-# Production image with Chromium for Puppeteer
+# Production image with Chrome for Testing for Puppeteer
 FROM public.ecr.aws/docker/library/node:20-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Install Chromium and its system dependencies
-# Note: system chromium is used instead of bundled download because the build
-# environment in China may not be able to access Google's Chrome for Testing CDN
+# Install shared libraries needed by Chrome for Testing
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    openssl \
-    chromium \
+    ca-certificates \
+    curl \
     fonts-liberation \
     fonts-noto-cjk \
+    libasound2 \
     libatk-bridge2.0-0 \
     libatk1.0-0 \
     libcups2 \
@@ -63,19 +62,30 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgtk-3-0 \
     libnspr4 \
     libnss3 \
+    libu2f-udev \
+    libvulkan1 \
     libxcomposite1 \
     libxdamage1 \
     libxfixes3 \
     libxkbcommon0 \
     libxrandr2 \
+    openssl \
+    unzip \
     xdg-utils \
-    && rm -rf /var/lib/apt/lists/* \
-    # Replace broken chrome_crashpad_handler with no-op
-    && find /usr -name "chrome_crashpad_handler" -exec sh -c 'ln -sf /usr/bin/true "$1"' _ {} \;
+    && rm -rf /var/lib/apt/lists/*
 
-# Tell Puppeteer to use system Chromium
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+# Download Chrome for Testing from npmmirror mirror — it has a working crashpad_handler,
+# unlike Debian's system chromium package.
+# Version is resolved from Google's API with a hardcoded fallback (update periodically).
+RUN CHROME_VERSION=$(curl -sL --max-time 10 "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions.json" | \
+    node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).channels.Stable.version" 2>/dev/null || \
+    echo "148.0.7778.97") \
+    && echo "Chrome for Testing version: $CHROME_VERSION" \
+    && curl -sL "https://registry.npmmirror.com/-/binary/chrome-for-testing/${CHROME_VERSION}/linux64/chrome-linux64.zip" -o /tmp/chrome.zip \
+    && unzip /tmp/chrome.zip -d /opt/chrome \
+    && rm /tmp/chrome.zip
+
+ENV PUPPETEER_EXECUTABLE_PATH=/opt/chrome/chrome-linux64/chrome
 
 RUN groupadd --system --gid 1001 nodejs
 RUN useradd --system --uid 1001 --gid nodejs nextjs
