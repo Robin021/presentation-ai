@@ -307,7 +307,6 @@ async function addRootImageToSlide(
 export async function exportPresentationAsImages(
   presentationId: string,
   fileName?: string,
-  baseUrl?: string,
 ): Promise<ExportResult> {
   try {
     const session = await auth();
@@ -329,9 +328,13 @@ export async function exportPresentationAsImages(
     }
 
     // Determine base URL for Puppeteer to call back to the export-render API
-    const appUrl = baseUrl || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    // Puppeteer runs in the same container as the Next.js server, so localhost is always correct.
+    // The default Next.js port is 3000; in K8s deployment the ConfigMap sets PORT=3001.
+    const port = process.env.PORT || "3000";
+    const appUrl = `http://localhost:${port}`;
 
     // Capture screenshots via Puppeteer at native 1920x1080 (no scale multiplier)
+    console.log(`[ExportImages] Starting screenshot capture via ${appUrl} for ${totalSlides} slides`);
     const screenshots = await captureSlideScreenshots(
       appUrl,
       presentationId,
@@ -340,7 +343,6 @@ export async function exportPresentationAsImages(
     );
 
     // Create PPTX with screenshots as full-slide images
-    const PptxGenJS = (await import("pptxgenjs")).default;
     const pptx = new PptxGenJS();
     pptx.layout = "LAYOUT_16x9";
     pptx.title = presentationData.title || "Presentation";
@@ -368,8 +370,10 @@ export async function exportPresentationAsImages(
       fileName: `${fileName ?? presentationData.title ?? "presentation"}.pptx`,
     };
   } catch (error) {
-    console.error("Error exporting presentation as images:", error);
-    return { success: false, error: "Failed to export presentation as images" };
+    const msg = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : "";
+    console.error("[ExportImages] Failed:", msg, stack);
+    return { success: false, error: `Failed to export presentation as images: ${msg}` };
   }
 }
 
