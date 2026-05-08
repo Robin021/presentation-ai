@@ -39,22 +39,17 @@ export async function captureSlideScreenshots(
     try {
         // Launch browser with optimized settings for server environment
         // Uses system Chromium in Docker (set via PUPPETEER_EXECUTABLE_PATH)
+        // --single-process avoids spawning separate crashpad_handler process
         browser = await puppeteer.launch({
             headless: true,
             executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-            env: {
-                ...process.env,
-                CHROME_CRASHPAD_HANDLER: "/dev/null",
-            },
             args: [
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
                 "--disable-dev-shm-usage",
                 "--disable-accelerated-2d-canvas",
                 "--disable-gpu",
-                "--font-render-hinting=none",
-                "--disable-crashpad-forwarding",
-                "--disable-breakpad",
+                "--single-process",
             ],
         });
 
