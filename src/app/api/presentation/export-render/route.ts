@@ -176,7 +176,6 @@ function generateSlideHTML(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Slide ${slideIndex + 1} - Export</title>
-  <base href="${baseUrl}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   ${fontLinksStr}
@@ -233,7 +232,7 @@ function generateSlideHTML(
         slide.layoutType === 'left' ? 'row-reverse' : 'row'};
       background-color: ${slide.bgColor || themeColors.background};
       ${slide.layoutType === 'background' && slide.rootImage?.url ?
-        `background-image: url(${slide.rootImage.url}); background-size: cover; background-position: center;` : ''}
+        `background-image: url(${slide.rootImage.url.startsWith('/') ? baseUrl + slide.rootImage.url : slide.rootImage.url}); background-size: cover; background-position: center;` : ''}
     }
 
     .content-area {
@@ -927,6 +926,7 @@ function generateSlideHTML(
     var slideData = ${slideData};
     var themeColors = ${themeData};
     var mode = '${mode}';
+    var baseUrl = '${baseUrl}';
 
     // === Utility Functions ===
     function escapeHtml(text) {
@@ -997,9 +997,17 @@ function generateSlideHTML(
       return '<p data-element-type="p" class="presentation-paragraph">' + inner + '</p>';
     }
 
+    function resolveUrl(src) {
+      if (!src) return '';
+      if (src.indexOf('://') !== -1 || src.indexOf('//') === 0) return src;
+      if (src.indexOf('/') === 0) return baseUrl + src;
+      return src;
+    }
+
     function renderImage(node) {
       var src = node.url || '';
       if (!src) return '';
+      src = resolveUrl(src);
       return '<img data-element-type="img" class="presentation-image" src="' + escapeHtml(src) + '" alt="' + escapeHtml(node.query || '') + '" style="max-width:100%;height:auto;object-fit:cover;border-radius:8px;margin:8px 0;">';
     }
 
@@ -1511,7 +1519,7 @@ function generateSlideHTML(
 
       // Image area for left/right/vertical layouts
       if (slideData.rootImage && slideData.rootImage.url && slideData.layoutType && slideData.layoutType !== 'background') {
-        html += '<div class="image-area" style="background-image: url(' + slideData.rootImage.url + ')"></div>';
+        html += '<div class="image-area" style="background-image: url(' + resolveUrl(slideData.rootImage.url) + ')"></div>';
       }
 
       container.innerHTML = html;
