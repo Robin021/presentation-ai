@@ -95,7 +95,7 @@ export class PlateJSToPPTXConverter {
   private readonly SLIDE_HEIGHT = 5.625;
   private readonly MARGIN = 0.5;
   private readonly COLUMN_GAP = 0.15; // Gap between columns
-  private readonly ELEMENT_SPACING = 0.15; // Spacing between elements
+  private readonly ELEMENT_SPACING = 0.12; // Spacing between elements
 
   // Theme defaults (mirror src/styles/presentation.css light variables)
   private THEME: ThemeColors = {
@@ -580,7 +580,7 @@ export class PlateJSToPPTXConverter {
     fontSize: number,
     measureOnly = false,
   ): number {
-    const height = Math.max(fontSize / 72 + 0.4, 1.0);
+    const height = Math.max(fontSize / 72 + 0.3, 0.8);
     if (measureOnly) return height;
 
     const runs = this.extractTextRuns(element);
@@ -631,11 +631,11 @@ export class PlateJSToPPTXConverter {
     if (!text.trim()) return 0.15;
 
     // Dynamic height calculation with reasonable limits
-    const fontSize = 14;
-    const charsPerInch = 14; // Fewer chars per inch with larger font
+    const fontSize = 12;
+    const charsPerInch = 16;
     const estimatedLines = Math.ceil(text.length / (width * charsPerInch));
-    const lineHeight = 0.28; // Taller lines for larger text
-    const calculatedHeight = Math.max(0.4, Math.min(2.0, estimatedLines * lineHeight));
+    const lineHeight = 0.24;
+    const calculatedHeight = Math.max(0.3, Math.min(1.8, estimatedLines * lineHeight));
 
     if (measureOnly) return calculatedHeight;
 
@@ -1900,8 +1900,9 @@ export class PlateJSToPPTXConverter {
       }
     }
 
-    // Ensure default fallback
-    if (!options.fontFace) options.fontFace = "Inter";
+    // Don't set a default fontFace here — let the PPTX theme-level font
+    // (set in setupPresentation) propagate to elements without explicit fontFamily.
+    // This ensures theme fonts like "Porsche Next" apply consistently.
 
     return options;
   }

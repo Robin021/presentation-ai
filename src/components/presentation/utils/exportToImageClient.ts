@@ -114,37 +114,22 @@ export async function exportPresentationAsImagesClient(
       poll();
     });
 
-    // Capture the slide as a JPEG image
-    let canvas;
-    try {
-      canvas = await html2canvas(
-        iframe.contentDocument!.documentElement,
-        {
-          scale: 1,
-          useCORS: true,
-          backgroundColor: null,
-          width: 1920,
-          height: 1080,
-          logging: false,
-          allowTaint: false,
-          imageTimeout: 15000,
-        },
-      );
-    } catch {
-      // Fallback: capture without CORS for same-origin images
-      canvas = await html2canvas(
-        iframe.contentDocument!.documentElement,
-        {
-          scale: 1,
-          useCORS: false,
-          backgroundColor: null,
-          width: 1920,
-          height: 1080,
-          logging: false,
-          allowTaint: false,
-        },
-      );
-    }
+    // Capture the slide as a JPEG image.
+    // Note: useCORS=true can cause same-origin images (like local PNGs) to fail
+    // in html2canvas, so we keep it disabled. Cross-origin images (UploadThing)
+    // without CORS headers will render as blank regardless.
+    const canvas = await html2canvas(
+      iframe.contentDocument!.documentElement,
+      {
+        scale: 1,
+        useCORS: false,
+        backgroundColor: null,
+        width: 1920,
+        height: 1080,
+        logging: false,
+        allowTaint: false,
+      },
+    );
 
     const imgData = canvas.toDataURL("image/jpeg", 0.9);
 
