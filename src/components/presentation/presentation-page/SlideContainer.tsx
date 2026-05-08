@@ -28,7 +28,6 @@ interface SlideContainerProps {
   className?: string;
   isReadOnly?: boolean;
   slideWidth?: string;
-  slidesCount?: number;
 }
 
 export function SlideContainer({
@@ -38,14 +37,9 @@ export function SlideContainer({
   className,
   isReadOnly = false,
   slideWidth,
-  slidesCount,
 }: SlideContainerProps) {
   const isPresenting = usePresentationState((s) => s.isPresenting);
   const currentSlideIndex = usePresentationState((s) => s.currentSlideIndex);
-  const setCurrentSlideIndex = usePresentationState(
-    (s) => s.setCurrentSlideIndex,
-  );
-  // setSlides no longer needed after extracting operations
   // Select only this slide's data so other slides don't re-render on unrelated changes
   const currentSlide = usePresentationState((s) => s.slides[index]);
   const {
@@ -187,23 +181,6 @@ export function SlideContainer({
         </div>
       )}
 
-      {isPresenting && (
-        <div className="absolute bottom-0.5 left-1 right-1 z-[1001]">
-          <div className="flex h-1.5 w-full gap-1">
-            {Array.from({ length: slidesCount ?? 0 }).map((_, index) => (
-              <button
-                key={index}
-                className={`h-full flex-1 rounded-full transition-all ${index === currentSlideIndex
-                    ? "bg-primary shadow-sm"
-                    : "bg-white/20 hover:bg-white/40"
-                  }`}
-                onClick={() => setCurrentSlideIndex(index)}
-                aria-label={`Go to slide ${index + 1}`}
-              />
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
