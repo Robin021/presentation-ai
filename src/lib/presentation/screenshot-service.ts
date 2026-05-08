@@ -49,6 +49,8 @@ export async function captureSlideScreenshots(
                 "--disable-accelerated-2d-canvas",
                 "--disable-gpu",
                 "--font-render-hinting=none",
+                "--disable-crashpad-forwarding",
+                "--disable-breakpad",
             ],
         });
 
