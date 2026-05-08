@@ -18,12 +18,6 @@ RUN pnpm config set registry https://registry.npmmirror.com
 # Install dependencies and generate Prisma client
 RUN pnpm install --frozen-lockfile && pnpm prisma generate
 
-# Download Chrome for Testing from npmmirror mirror (used by Puppeteer for PPTX image export)
-# Chrome for Testing has a working crashpad_handler, unlike Debian's system chromium
-RUN pnpm exec browsers install chrome@stable \
-    --base-url https://registry.npmmirror.com/-/binary/chrome-for-testing/ \
-    --path /opt/chrome
-
 # Builder image
 FROM public.ecr.aws/docker/library/node:20-slim AS builder
 WORKDIR /app
@@ -52,10 +46,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Install shared libraries needed by Chrome for Testing (not chromium itself —
-# we download Chrome for Testing from npmmirror mirror in the deps stage)
+# Install shared libraries needed by Chrome for Testing
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    curl \
     fonts-liberation \
     fonts-noto-cjk \
     libasound2 \
@@ -76,10 +70,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxkbcommon0 \
     libxrandr2 \
     openssl \
+    unzip \
     xdg-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# Use Chrome for Testing downloaded in the deps stage (has working crashpad_handler)
+# Download Chrome for Testing from npmmirror mirror — it has a working crashpad_handler,
+# unlike Debian's system chromium package.
+# Version is resolved from Google's API with a hardcoded fallback (update periodically).
+RUN CHROME_VERSION=$(curl -sL --max-time 10 "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions.json" | \
+    node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).channels.Stable.version" 2>/dev/null || \
+    echo "148.0.7778.97") \
+    && echo "Chrome for Testing version: $CHROME_VERSION" \
+    && curl -sL "https://registry.npmmirror.com/-/binary/chrome-for-testing/${CHROME_VERSION}/linux64/chrome-linux64.zip" -o /tmp/chrome.zip \
+    && unzip /tmp/chrome.zip -d /opt/chrome \
+    && rm /tmp/chrome.zip
+
 ENV PUPPETEER_EXECUTABLE_PATH=/opt/chrome/chrome-linux64/chrome
 
 RUN groupadd --system --gid 1001 nodejs
@@ -88,9 +93,6 @@ RUN useradd --system --uid 1001 --gid nodejs nextjs
 # Copy necessary files from builder
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
-
-# Copy Chrome for Testing from deps stage (downloaded from npmmirror mirror)
-COPY --from=deps /opt/chrome /opt/chrome
 
 # Automatically leverage output traces to reduce image size
 # This includes a minimal node_modules
