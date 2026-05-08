@@ -973,9 +973,18 @@ export class PlateJSToPPTXConverter {
     const textAreaX = x + pyramidAreaWidth + width * 0.07;
     const itemSpacing = 0.08;
 
-    // Calculate height per item
+    // Calculate height per item — measure actual content height
+    const contentW = textAreaWidth;
+    const measuredHeights = await Promise.all(
+      items.map(async (item) => {
+        const itemText = this.extractText(item);
+        const estLines = Math.ceil(itemText.length / (contentW * 14));
+        return Math.max(0.6, Math.min(2.0, estLines * 0.24));
+      }),
+    );
+    const maxMeasured = Math.max(...measuredHeights, 0.75);
     const availableHeight = this.SLIDE_HEIGHT - y - 0.3;
-    const itemHeight = Math.min(0.75, availableHeight / items.length - itemSpacing);
+    const itemHeight = Math.min(maxMeasured, availableHeight / items.length - itemSpacing);
 
     let currentY = y;
 
