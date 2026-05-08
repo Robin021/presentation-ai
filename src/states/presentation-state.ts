@@ -137,7 +137,7 @@ export const usePresentationState = create<PresentationState>((set) => ({
   outline: [],
   searchResults: [],
   webSearchEnabled: false,
-  theme: "mystique",
+  theme: "porsche",
   customThemeData: null,
   imageModel: "black-forest-labs/FLUX.1-schnell-Free",
   imageSource: "none",

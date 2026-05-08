@@ -199,13 +199,13 @@ export default function PresentationPage() {
               } else {
                 // Fallback to default theme if custom theme not found
                 console.warn("Custom theme not found:", themeId);
-                setTheme("mystique");
+                setTheme("porsche");
               }
             })
             .catch((error) => {
               console.error("Failed to load custom theme:", error);
               // Fallback to default theme on error
-              setTheme("mystique");
+              setTheme("porsche");
             });
         }
       }

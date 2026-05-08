@@ -7,7 +7,7 @@ import { Wand2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { toast } from "sonner";
-import { InfographicSection } from "./InfographicSection";
+
 import { PresentationControls } from "./PresentationControls";
 import { PresentationExamples } from "./PresentationExamples";
 import { PresentationHeader } from "./PresentationHeader";
@@ -97,12 +97,7 @@ export function PresentationDashboard({
           </div>
         </div>
 
-        {/* Infographic Section */}
-        <div className="border-t pt-8">
-          <InfographicSection />
-        </div>
-
-        <PresentationExamples />
+<PresentationExamples />
         <RecentPresentations />
       </div>
     </div>

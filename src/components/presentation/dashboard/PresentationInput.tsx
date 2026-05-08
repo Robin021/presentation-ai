@@ -1,8 +1,6 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import { usePresentationState } from "@/states/presentation-state";
-import { Sparkles } from "lucide-react";
 import { WebSearchToggle } from "./WebSearchToggle";
 
 export function PresentationInput({
@@ -10,7 +8,7 @@ export function PresentationInput({
 }: {
   handleGenerate: () => void;
 }) {
-  const { presentationInput, setPresentationInput, setShowTemplates } =
+  const { presentationInput, setPresentationInput } =
     usePresentationState();
 
   return (
@@ -19,15 +17,6 @@ export function PresentationInput({
         <h2 className="text-sm font-semibold text-foreground">
           What would you like to present about?
         </h2>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setShowTemplates(true)}
-          className="gap-2 shrink-0"
-        >
-          <Sparkles className="h-3.5 w-3.5" />
-          Templates
-        </Button>
       </div>
 
       <div className="relative group">
