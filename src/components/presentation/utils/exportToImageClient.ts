@@ -88,13 +88,31 @@ export async function exportPresentationAsImagesClient(
       );
     });
 
-    // Give fonts and async rendering time to settle
+    // Wait for the inline renderer to finish rendering and loading images
     try {
       await (iframe.contentDocument?.fonts?.ready ?? Promise.resolve());
     } catch {
       // Font loading is non-critical
     }
-    await new Promise((r) => setTimeout(r, 1000));
+    await new Promise<void>((resolve) => {
+      const timeout = setTimeout(() => {
+        console.warn(`Slide ${i + 1} render wait timed out, continuing`);
+        resolve();
+      }, 15000);
+      const poll = () => {
+        try {
+          if ((iframe.contentWindow as any)?.slideReady) {
+            clearTimeout(timeout);
+            resolve();
+            return;
+          }
+        } catch {
+          // Cross-origin access check failed, fall back to timer
+        }
+        setTimeout(poll, 100);
+      };
+      poll();
+    });
 
     // Capture the slide as a JPEG image
     const canvas = await html2canvas(

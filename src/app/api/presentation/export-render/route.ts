@@ -170,6 +170,42 @@ function generateSlideHTML(
   if (fontBody && fontBody !== fontHeading) addFont(fontBody);
   const fontLinksStr = fontLinkTags.join("\n      ");
 
+  // Scan slide for SVG images and inline their content (html2canvas doesn't support SVG <img>)
+  const svgContentMap: Record<string, string> = {};
+  const scanForSVGs = (nodes: unknown[]): void => {
+    if (!Array.isArray(nodes)) return;
+    for (const node of nodes) {
+      if (!node || typeof node !== "object") continue;
+      const n = node as Record<string, unknown>;
+      if ((n.type === "img" || n.type === "image") && typeof n.url === "string") {
+        const url = n.url;
+        if (url.endsWith(".svg") && !svgContentMap[url]) {
+          try {
+            const fs = require("fs") as typeof import("fs");
+            const path = require("path") as typeof import("path");
+            const filePath = path.join(process.cwd(), "public", url);
+            svgContentMap[url] = fs.readFileSync(filePath, "utf-8").replace(/<\?xml[^>]*\?>/g, "");
+          } catch {
+            console.warn("Failed to read SVG for export:", url);
+          }
+        }
+      }
+      if (Array.isArray(n.children)) scanForSVGs(n.children);
+    }
+  };
+  scanForSVGs(slide.content ?? []);
+  if (slide.rootImage?.url?.endsWith(".svg") && !svgContentMap[slide.rootImage.url]) {
+    try {
+      const fs = require("fs") as typeof import("fs");
+      const path = require("path") as typeof import("path");
+      const filePath = path.join(process.cwd(), "public", slide.rootImage.url);
+      svgContentMap[slide.rootImage.url] = fs.readFileSync(filePath, "utf-8").replace(/<\?xml[^>]*\?>/g, "");
+    } catch {
+      console.warn("Failed to read root SVG for export:", slide.rootImage.url);
+    }
+  }
+  const svgContentJson = JSON.stringify(svgContentMap);
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -269,6 +305,11 @@ function generateSlideHTML(
       object-fit: cover;
       border-radius: 8px;
       margin: 8px 0;
+    }
+    .presentation-image svg {
+      max-width: 100%;
+      height: auto;
+      display: block;
     }
     .chart-container {
       background: var(--presentation-background);
@@ -927,6 +968,7 @@ function generateSlideHTML(
     var themeColors = ${themeData};
     var mode = '${mode}';
     var baseUrl = '${baseUrl}';
+    var svgContents = ${svgContentJson};
 
     // === Utility Functions ===
     function escapeHtml(text) {
@@ -1007,6 +1049,13 @@ function generateSlideHTML(
     function renderImage(node) {
       var src = node.url || '';
       if (!src) return '';
+      // Inline SVG content when available (html2canvas can't render SVG <img>)
+      if (svgContents[src]) {
+        var align = node.align || '';
+        var svgStyle = 'display:block;max-width:100%;height:auto;margin:8px 0;' + (align === 'center' ? 'margin-left:auto;margin-right:auto;' : '');
+        var svgContent = svgContents[src].replace('<svg', '<svg style="' + svgStyle + '"');
+        return '<div data-element-type="img" class="presentation-image" style="text-align:' + align + '">' + svgContent + '</div>';
+      }
       src = resolveUrl(src);
       return '<img data-element-type="img" class="presentation-image" src="' + escapeHtml(src) + '" alt="' + escapeHtml(node.query || '') + '" style="max-width:100%;height:auto;object-fit:cover;border-radius:8px;margin:8px 0;">';
     }
