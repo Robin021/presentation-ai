@@ -1,7 +1,8 @@
 // components/export-ppt-button.tsx
 "use client";
 
-import { exportPresentation, exportPresentationAsImages } from "@/app/_actions/presentation/exportPresentationActions";
+import { exportPresentation } from "@/app/_actions/presentation/exportPresentationActions";
+import { exportPresentationAsImagesClient } from "@/components/presentation/utils/exportToImageClient";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -51,45 +52,21 @@ export function ExportButton({
   const handleImageExport = async () => {
     setIsExporting(true);
     try {
-      const result = await exportPresentationAsImages(
+      const slides = usePresentationState.getState().slides;
+
+      await exportPresentationAsImagesClient(
         presentationId,
+        slides.length,
         fileName,
       );
 
-      if (result.success && result.data) {
-        // Create blob from base64 data
-        const byteCharacters = atob(result.data);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], {
-          type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        });
+      toast({
+        title: "Export Successful",
+        description: "Your presentation has been exported as images.",
+        variant: "default",
+      });
 
-        // Create download link
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = result.fileName ?? `${fileName}.pptx`;
-        document.body.appendChild(link);
-        link.click();
-
-        // Clean up
-        URL.revokeObjectURL(url);
-        document.body.removeChild(link);
-
-        toast({
-          title: "Export Successful",
-          description: "Your presentation has been exported as images.",
-          variant: "default",
-        });
-
-        setIsExportDialogOpen(false);
-      } else {
-        throw new Error(result.error ?? "Export failed");
-      }
+      setIsExportDialogOpen(false);
     } catch (error) {
       console.error("Image export error:", error);
       toast({
