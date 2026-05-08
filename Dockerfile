@@ -20,7 +20,7 @@ RUN pnpm install --frozen-lockfile && pnpm prisma generate
 
 # Download Chrome for Testing from npmmirror mirror (used by Puppeteer for PPTX image export)
 # Chrome for Testing has a working crashpad_handler, unlike Debian's system chromium
-RUN npx @puppeteer/browsers install chrome@stable \
+RUN pnpm exec browsers install chrome@stable \
     --base-url https://registry.npmmirror.com/-/binary/chrome-for-testing/ \
     --path /opt/chrome
 
