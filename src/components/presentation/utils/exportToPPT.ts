@@ -390,7 +390,7 @@ export class PlateJSToPPTXConverter {
           x,
           y,
           width,
-          24,
+          44,
           measureOnly,
         );
       case "h2":
@@ -399,7 +399,7 @@ export class PlateJSToPPTXConverter {
           x,
           y,
           width,
-          20,
+          33,
           measureOnly,
         );
       case "h3":
@@ -408,7 +408,7 @@ export class PlateJSToPPTXConverter {
           x,
           y,
           width,
-          18,
+          26,
           measureOnly,
         );
       case "h4":
@@ -417,7 +417,7 @@ export class PlateJSToPPTXConverter {
           x,
           y,
           width,
-          16,
+          21,
           measureOnly,
         );
       case "h5":
@@ -426,7 +426,7 @@ export class PlateJSToPPTXConverter {
           x,
           y,
           width,
-          14,
+          18,
           measureOnly,
         );
       case "h6":
@@ -435,7 +435,7 @@ export class PlateJSToPPTXConverter {
           x,
           y,
           width,
-          12,
+          15,
           measureOnly,
         );
       case "p":
@@ -574,13 +574,13 @@ export class PlateJSToPPTXConverter {
 
     const runs = this.extractTextRuns(element);
     const textOptions = this.getTextOptions(element, fontSize);
-    // Use accent color for headings to mimic gradient accent
-    textOptions.color = this.THEME.accent;
+    // Use heading color from theme
+    textOptions.color = this.THEME.heading;
 
     if (runs.length > 0) {
       const coloredRuns = runs.map((r) => ({
         text: r.text,
-        options: { ...(r.options ?? {}), color: this.THEME.accent },
+        options: { ...(r.options ?? {}), color: this.THEME.heading },
       }));
       this.currentSlide?.addText(coloredRuns, {
         x,
@@ -1648,62 +1648,74 @@ export class PlateJSToPPTXConverter {
     measureOnly = false,
   ): Promise<number> {
     const imageUrl: string | undefined = (element as Partial<ImageElement>).url;
-    const height = 2; // Default image height
+
+    // Check for element-level width and alignment (used by Porsche logo, etc.)
+    const elemWidth = (element as unknown as { width?: number }).width;
+    const elemAlign = (element as unknown as { align?: string }).align;
+
+    // Calculate image dimensions
+    let imageWidth: number;
+    let imageHeight: number;
+
+    if (elemWidth) {
+      // Convert pixel width to inches (96 DPI standard for PPT)
+      imageWidth = elemWidth / 96;
+      // For wide logos (e.g. Porsche wordmark 15:1), cap height
+      imageHeight = Math.min(imageWidth * 0.3, 1.5);
+    } else {
+      imageWidth = width;
+      imageHeight = 2;
+    }
+
+    // Apply horizontal alignment
+    let imageX = x;
+    if (elemAlign === "center") {
+      imageX = x + Math.max(0, (width - imageWidth) / 2);
+    } else if (elemAlign === "right") {
+      imageX = x + Math.max(0, width - imageWidth);
+    }
+
+    const height = imageHeight;
 
     if (!measureOnly && imageUrl && this.currentSlide) {
       try {
         const imageOptions: PptxGenJS.ImageProps = {
           path: this.resolveImagePath(imageUrl),
-          x,
+          x: imageX,
           y,
-          w: width,
+          w: imageWidth,
           h: height,
         };
 
-        // Apply sizing based on objectFit setting (based on official PptxGenJS docs)
-        // Default behavior: object-fit "cover" with centered object-position if no cropSettings
+        // Apply sizing based on cropSettings if present
         const cropSettings = (
           element as unknown as { cropSettings?: ImageCropSettings }
         ).cropSettings;
-        const objectFit = cropSettings?.objectFit || "cover";
-        const objectPosition = cropSettings?.objectPosition || {
-          x: 0.5,
-          y: 0.5,
-        };
-
-        // Apply sizing according to official PptxGenJS documentation
-        switch (objectFit) {
-          case "contain":
-            // contain: shrinks image to fit completely within area, preserving ratio
-            imageOptions.sizing = {
-              type: "contain",
-              w: width,
-              h: height,
-            };
-            break;
-          case "cover":
-            // cover: shrinks image to completely fill area, crops excess, preserving ratio
-            imageOptions.sizing = {
-              type: "cover",
-              w: width,
-              h: height,
-            };
-            break;
-          case "fill":
-            // fill: no sizing property = default stretch behavior
-            break;
-          default:
-            // Use crop with positioning offsets
-            imageOptions.sizing = {
-              type: "crop",
-              w: width,
-              h: height,
-              // x, y are positions relative to the source image for cropping
-              x: objectPosition.x * width * 0.1, // Adjust multiplier as needed
-              y: objectPosition.y * height * 0.1, // Adjust multiplier as needed
-            };
-            break;
+        if (cropSettings) {
+          const objectFit = cropSettings.objectFit || "cover";
+          const objectPosition = cropSettings.objectPosition || { x: 0.5, y: 0.5 };
+          switch (objectFit) {
+            case "contain":
+              imageOptions.sizing = { type: "contain", w: imageWidth, h: height };
+              break;
+            case "cover":
+              imageOptions.sizing = { type: "cover", w: imageWidth, h: height };
+              break;
+            case "fill":
+              break;
+            default:
+              imageOptions.sizing = {
+                type: "crop", w: imageWidth, h: height,
+                x: objectPosition.x * imageWidth * 0.1,
+                y: objectPosition.y * height * 0.1,
+              };
+              break;
+          }
+        } else {
+          // Default: contain to preserve aspect ratio
+          imageOptions.sizing = { type: "contain", w: imageWidth, h: height };
         }
+
         this.currentSlide.addImage(imageOptions);
       } catch (error) {
         console.warn("Failed to add image:", error);
