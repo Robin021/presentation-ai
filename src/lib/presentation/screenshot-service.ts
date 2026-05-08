@@ -47,6 +47,11 @@ export async function captureSlideScreenshots(
                 "--disable-dev-shm-usage",
                 "--disable-accelerated-2d-canvas",
                 "--disable-gpu",
+                // Prevent crashpad-related launch failure with system Chromium.
+                // --single-process avoids spawning separate GPU/renderer processes,
+                // eliminating the need for crashpad_handler entirely.
+                "--single-process",
+                "--disable-crash-reporter",
             ],
         });
 
