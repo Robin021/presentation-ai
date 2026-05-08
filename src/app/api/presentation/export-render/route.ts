@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
   const presentationId = searchParams.get("id");
   const slideIndexParam = searchParams.get("slideIndex");
   const mode = searchParams.get("mode") || "html"; // "html" or "measure"
+  const baseUrl = request.nextUrl.origin;
 
   if (!presentationId || slideIndexParam === null) {
     return NextResponse.json(
@@ -93,6 +94,7 @@ export async function GET(request: NextRequest) {
       themeColors,
       slideIndex,
       mode,
+      baseUrl,
       fontHeading,
       fontBody,
       isDark,
@@ -127,6 +129,7 @@ function generateSlideHTML(
   themeColors: ThemeColors,
   slideIndex: number,
   mode: string,
+  baseUrl: string,
   fontHeading?: string,
   fontBody?: string,
   isDark?: boolean,
@@ -173,6 +176,7 @@ function generateSlideHTML(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Slide ${slideIndex + 1} - Export</title>
+  <base href="${baseUrl}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   ${fontLinksStr}
