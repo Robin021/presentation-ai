@@ -536,7 +536,7 @@ function generateSlideHTML(
     }
     .timeline-h-single {
       display: flex;
-      justify-content: space-around;
+      justify-content: space-between;
       width: 100%;
       margin: 8px 0;
       position: relative;
@@ -550,7 +550,7 @@ function generateSlideHTML(
     }
     .timeline-h-double {
       display: flex;
-      justify-content: space-around;
+      justify-content: space-between;
       width: 100%;
       margin: 8px 0;
       position: relative;
