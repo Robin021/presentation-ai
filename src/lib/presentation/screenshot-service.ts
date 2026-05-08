@@ -42,6 +42,10 @@ export async function captureSlideScreenshots(
         browser = await puppeteer.launch({
             headless: true,
             executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+            env: {
+                ...process.env,
+                CHROME_CRASHPAD_HANDLER: "/dev/null",
+            },
             args: [
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
