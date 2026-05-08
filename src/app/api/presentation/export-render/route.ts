@@ -1630,7 +1630,19 @@ function generateSlideHTML(
           if (img.complete) checkDone();
           else { img.addEventListener('load', checkDone); img.addEventListener('error', checkDone); }
         });
-        bgEls.forEach(function () { setTimeout(checkDone, 500); });
+        bgEls.forEach(function (el) {
+          // Actually wait for background images to load, not just 500ms timeout
+          var bgStyle = el.style.backgroundImage || '';
+          var match = bgStyle.match(/url\(["']?([^"')]+)["']?\)/);
+          if (match) {
+            var preload = new Image();
+            preload.onload = checkDone;
+            preload.onerror = checkDone;
+            preload.src = match[1];
+          } else {
+            setTimeout(checkDone, 500);
+          }
+        });
         setTimeout(resolve, 5000);
       });
     }
