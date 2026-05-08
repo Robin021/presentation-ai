@@ -68,25 +68,23 @@ export async function exportPresentationAsImagesClient(
     iframe.setAttribute("sandbox", "allow-scripts allow-same-origin");
     document.body.appendChild(iframe);
 
-    // Load the HTML into the iframe
-    iframe.srcdoc = html;
+    // Load the HTML into the iframe via blob URL (srcdoc has origin issues with images)
+    const blob = new Blob([html], { type: "text/html" });
+    const blobUrl = URL.createObjectURL(blob);
+    iframe.src = blobUrl;
 
     // Wait for the iframe to finish loading
-    await new Promise<void>((resolve, reject) => {
+    await new Promise<void>((resolve) => {
       const timeout = setTimeout(() => {
         console.warn(`Slide ${i + 1} iframe load timed out, continuing`);
         resolve();
       }, 20000);
 
-      iframe.addEventListener(
-        "load",
-        () => {
-          clearTimeout(timeout);
-          resolve();
-        },
-        { once: true },
-      );
+      iframe.addEventListener("load", () => { clearTimeout(timeout); resolve(); }, { once: true });
     });
+
+    // Revoke blob URL after load
+    URL.revokeObjectURL(blobUrl);
 
     // Wait for the inline renderer to finish rendering and loading images
     try {
