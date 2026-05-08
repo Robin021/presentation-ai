@@ -15,6 +15,7 @@ import { useEffect } from "react";
 import { PresentModeHeader } from "../dashboard/PresentModeHeader";
 import { ThinkingDisplay } from "../dashboard/ThinkingDisplay";
 import PresentationEditor from "../editor/presentation-editor";
+import { PresentModeOverlay } from "./PresentModeOverlay";
 import { GlobalUndoRedoHandler } from "./GlobalUndoRedoHandler";
 
 interface PresentationSlidesViewProps {
@@ -91,7 +92,6 @@ export const PresentationSlidesView = ({
             index={index}
             id={slide.id}
             slideWidth={slide.width}
-            slidesCount={items.length}
             isReadOnly={readOnly}
           >
             <div
@@ -125,6 +125,8 @@ export const PresentationSlidesView = ({
         presentationTitle={currentPresentationTitle}
         showHeader={isPresenting && shouldShowExitHeader}
       />
+
+      {isPresenting && <PresentModeOverlay totalSlides={items.length} />}
 
       <ThinkingDisplay
         thinking={usePresentationState.getState().presentationThinking}
