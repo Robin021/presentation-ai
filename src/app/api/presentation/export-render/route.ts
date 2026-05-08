@@ -55,8 +55,12 @@ export async function GET(request: NextRequest) {
     }
 
     const slide = slides[slideIndex];
-    const themeName = (presentation.presentation as { themeName?: string })?.themeName ?? "default";
-    const themeColors = themes[themeName as keyof typeof themes]?.colors?.light ?? themes.daktilo.colors.light;
+    // Allow the client to override the theme (used by the client-side html2canvas export)
+    const queryThemeName = searchParams.get("themeName");
+    const queryThemeDark = searchParams.get("themeDark") === "true";
+    const dbThemeName = (presentation.presentation as { themeName?: string })?.themeName ?? "default";
+    const resolvedThemeName = (queryThemeName && queryThemeName in themes) ? queryThemeName : dbThemeName;
+    const themeColors = themes[resolvedThemeName as keyof typeof themes]?.colors?.[queryThemeDark ? "dark" : "light"] ?? themes.daktilo.colors.light;
 
     const html = generateSlideHTML(slide, themeColors, slideIndex, mode);
 
@@ -150,7 +154,7 @@ function generateSlideHTML(
         slide.layoutType === 'left' ? 'row-reverse' : 'row'};
       background-color: ${slide.bgColor || themeColors.background};
       ${slide.layoutType === 'background' && slide.rootImage?.url ?
-        `background-image: url(${slide.rootImage.url}); background-size: cover; background-position: center;` : ''}
+        `background-image: url("${slide.rootImage.url}"); background-size: cover; background-position: center; background-repeat: no-repeat;` : ''}
     }
 
     .content-area {
@@ -168,6 +172,7 @@ function generateSlideHTML(
       flex: 0 0 45%;
       background-size: cover;
       background-position: center;
+      background-repeat: no-repeat;
     }
 
     /* === Shared Element Styles === */
@@ -1428,7 +1433,7 @@ function generateSlideHTML(
 
       // Image area for left/right/vertical layouts
       if (slideData.rootImage && slideData.rootImage.url && slideData.layoutType && slideData.layoutType !== 'background') {
-        html += '<div class="image-area" style="background-image: url(' + slideData.rootImage.url + ')"></div>';
+        html += '<div class="image-area" style="background-image: url(\'' + slideData.rootImage.url + '\')"></div>';
       }
 
       container.innerHTML = html;

@@ -12,15 +12,31 @@ export async function exportPresentationAsImagesClient(
   presentationId: string,
   totalSlides: number,
   fileName?: string,
+  themeName?: string,
+  isDark?: boolean,
 ): Promise<void> {
   const pptx = new PptxGenJS();
   pptx.layout = "LAYOUT_16x9";
   pptx.title = fileName || "Presentation";
 
   for (let i = 0; i < totalSlides; i++) {
-    // Fetch slide HTML from the same-origin render API
+    // Fetch slide HTML from the same-origin render API with theme parameters
+    const params = new URLSearchParams({
+      id: presentationId,
+      slideIndex: i.toString(),
+      mode: "html",
+    });
+    
+    // Pass theme information to ensure consistent rendering
+    if (themeName) {
+      params.append("themeName", themeName);
+    }
+    if (isDark !== undefined) {
+      params.append("themeDark", isDark.toString());
+    }
+    
     const res = await fetch(
-      `/api/presentation/export-render?id=${presentationId}&slideIndex=${i}&mode=html`,
+      `/api/presentation/export-render?${params.toString()}`,
     );
     if (!res.ok) {
       throw new Error(`Failed to load slide ${i + 1} (${res.status})`);
@@ -67,13 +83,29 @@ export async function exportPresentationAsImagesClient(
     } catch {
       // Font loading is non-critical
     }
-    await new Promise((r) => setTimeout(r, 1000));
+    
+    // Wait longer for images and fonts to fully load
+    await new Promise((r) => setTimeout(r, 2000));
+    
+    // Ensure all images are loaded
+    const images = iframe.contentDocument?.querySelectorAll('img') || [];
+    await Promise.all(
+      Array.from(images).map((img) => {
+        if (img.complete) return Promise.resolve();
+        return new Promise((resolve) => {
+          img.onload = () => resolve(null);
+          img.onerror = () => resolve(null);
+          // Timeout after 5 seconds
+          setTimeout(() => resolve(null), 5000);
+        });
+      })
+    );
 
-    // Capture the slide as a JPEG image
+    // Capture the slide as a JPEG image with higher quality
     const canvas = await html2canvas(
       iframe.contentDocument!.documentElement,
       {
-        scale: 1,
+        scale: 2, // Increase scale for better quality
         useCORS: true,
         backgroundColor: "#ffffff",
         width: 1920,
@@ -82,6 +114,7 @@ export async function exportPresentationAsImagesClient(
         // Allow html2canvas to traverse into foreignObject / shadow roots
         // that the slide renderer may produce
         allowTaint: false,
+        imageTimeout: 15000, // Increase image loading timeout
       },
     );
 

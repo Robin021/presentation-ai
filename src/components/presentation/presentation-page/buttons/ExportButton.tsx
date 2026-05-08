@@ -53,11 +53,21 @@ export function ExportButton({
     setIsExporting(true);
     try {
       const slides = usePresentationState.getState().slides;
+      const currentTheme = usePresentationState.getState().theme;
+      const isDark = resolvedTheme === "dark";
+
+      // Determine theme name to pass
+      let themeNameToPass: string | undefined;
+      if (typeof currentTheme === "string") {
+        themeNameToPass = currentTheme;
+      }
 
       await exportPresentationAsImagesClient(
         presentationId,
         slides.length,
         fileName,
+        themeNameToPass,
+        isDark,
       );
 
       toast({
