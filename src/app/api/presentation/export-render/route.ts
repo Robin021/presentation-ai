@@ -1230,7 +1230,7 @@ function generateSlideHTML(
           html += '<div class="timeline-circle" style="background:' + color + ';box-shadow:0 0 0 2px white, 0 0 0 3px ' + color + '">';
           html += numbered ? (i + 1) : '';
           html += '</div>';
-          if (showLine && i < total - 1) html += '<div class="timeline-connector" style="background:' + color + '"></div>';
+          if (showLine) html += '<div class="timeline-connector" style="background:' + color + '"></div>';
           html += '<div class="timeline-content">' + escapeHtml(text) + '</div>';
           html += '</div>';
         }
@@ -1258,7 +1258,7 @@ function generateSlideHTML(
           html += '<div class="timeline-circle" style="background:' + color + ';box-shadow:0 0 0 2px white, 0 0 0 3px ' + color + '">';
           html += numbered ? (i + 1) : '';
           html += '</div>';
-          if (showLine && i < total - 1) html += '<div class="timeline-connector" style="background:' + color + '"></div>';
+          if (showLine) html += '<div class="timeline-connector" style="background:' + color + '"></div>';
           html += '<div class="timeline-content">' + escapeHtml(text) + '</div>';
           html += '</div>';
         }
