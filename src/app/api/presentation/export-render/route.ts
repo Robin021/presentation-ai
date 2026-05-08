@@ -544,8 +544,8 @@ function generateSlideHTML(
     .timeline-h-single-line {
       position: absolute;
       height: 2px;
-      left: 0;
-      right: 0;
+      left: 40px;
+      right: 40px;
       top: 24px;
     }
     .timeline-h-double {
@@ -558,8 +558,8 @@ function generateSlideHTML(
     .timeline-h-double-line {
       position: absolute;
       height: 2px;
-      left: 0;
-      right: 0;
+      left: 40px;
+      right: 40px;
       top: 50%;
       transform: translateY(-50%);
     }
