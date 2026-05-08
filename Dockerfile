@@ -16,6 +16,7 @@ COPY prisma ./prisma/
 RUN pnpm config set registry https://registry.npmmirror.com
 
 # Install dependencies and generate Prisma client
+# Chromium for Puppeteer is downloaded here to /root/.cache/puppeteer
 RUN pnpm install --frozen-lockfile && pnpm prisma generate
 
 # Builder image
@@ -46,10 +47,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Install Chromium and dependencies for Puppeteer
+# Install system dependencies needed by ANY Chromium (not Chromium itself)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     openssl \
-    chromium \
     fonts-liberation \
     fonts-noto-cjk \
     libatk-bridge2.0-0 \
@@ -67,13 +67,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxkbcommon0 \
     libxrandr2 \
     xdg-utils \
-    && rm -rf /var/lib/apt/lists/* \
-    # Replace broken chrome_crashpad_handler with no-op (it fails with --database is required)
-    && find /usr -name "chrome_crashpad_handler" -exec sh -c 'ln -sf /usr/bin/true "$1" && echo "Patched: $1"' _ {} \;
-
-# Set Puppeteer to use system Chromium
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+    && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --system --gid 1001 nodejs
 RUN useradd --system --uid 1001 --gid nodejs nextjs
@@ -86,6 +80,9 @@ COPY --from=builder /app/prisma ./prisma
 # This includes a minimal node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Copy Puppeteer's Chromium from deps stage (already downloaded by pnpm install)
+COPY --from=deps /root/.cache/puppeteer /root/.cache/puppeteer
 
 # Copy entrypoint script and set permissions
 COPY docker-entrypoint.sh ./
