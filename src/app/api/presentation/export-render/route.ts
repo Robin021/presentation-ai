@@ -1630,7 +1630,11 @@ function generateSlideHTML(
       });
     }
 
-    renderSlide();
+    try { renderSlide(); } catch(e) {
+      console.error('Slide render error:', e);
+      document.getElementById('loading')?.remove();
+      window.slideReady = true;
+    }
   </script>
 </body>
 </html>`;
