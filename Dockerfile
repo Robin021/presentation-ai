@@ -70,8 +70,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxrandr2 \
     xdg-utils \
     && rm -rf /var/lib/apt/lists/* \
-    # Replace broken chrome_crashpad_handler with no-op
-    && find /usr -name "chrome_crashpad_handler" -exec sh -c 'ln -sf /usr/bin/true "$1"' _ {} \;
+    # Delete broken chrome_crashpad_handler — replacing it with "true" causes
+    # ECONNRESET errors. Removing the binary entirely is cleaner; Chromium
+    # skips crashpad initialization when --disable-crash-reporter is set.
+    && find /usr -name "chrome_crashpad_handler" -delete
 
 # Tell Puppeteer to use system Chromium
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true

@@ -47,11 +47,12 @@ export async function captureSlideScreenshots(
                 "--disable-dev-shm-usage",
                 "--disable-accelerated-2d-canvas",
                 "--disable-gpu",
-                // Prevent crashpad-related launch failure with system Chromium.
-                // --single-process avoids spawning separate GPU/renderer processes,
-                // eliminating the need for crashpad_handler entirely.
-                "--single-process",
+                // Disable crash reporting to avoid broken crashpad_handler binary
+                // shipped with Debian's chromium package.
                 "--disable-crash-reporter",
+                // Avoid namespace/seccomp issues when running in Docker/K8s
+                "--no-zygote",
+                "--disable-seccomp-filter-sandbox",
             ],
         });
 
