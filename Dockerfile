@@ -18,6 +18,12 @@ RUN pnpm config set registry https://registry.npmmirror.com
 # Install dependencies and generate Prisma client
 RUN pnpm install --frozen-lockfile && pnpm prisma generate
 
+# Download Chrome for Testing from npmmirror mirror (used by Puppeteer for PPTX image export)
+# Chrome for Testing has a working crashpad_handler, unlike Debian's system chromium
+RUN npx @puppeteer/browsers install chrome@stable \
+    --base-url https://registry.npmmirror.com/-/binary/chrome-for-testing/ \
+    --path /opt/chrome
+
 # Builder image
 FROM public.ecr.aws/docker/library/node:20-slim AS builder
 WORKDIR /app
@@ -39,21 +45,20 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV SKIP_ENV_VALIDATION=1
 RUN pnpm build
 
-# Production image with Chromium for Puppeteer
+# Production image with Chrome for Testing for Puppeteer
 FROM public.ecr.aws/docker/library/node:20-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Install Chromium and its system dependencies
-# Note: system chromium is used instead of bundled download because the build
-# environment in China may not be able to access Google's Chrome for Testing CDN
+# Install shared libraries needed by Chrome for Testing (not chromium itself —
+# we download Chrome for Testing from npmmirror mirror in the deps stage)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    openssl \
-    chromium \
+    ca-certificates \
     fonts-liberation \
     fonts-noto-cjk \
+    libasound2 \
     libatk-bridge2.0-0 \
     libatk1.0-0 \
     libcups2 \
@@ -63,21 +68,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgtk-3-0 \
     libnspr4 \
     libnss3 \
+    libu2f-udev \
+    libvulkan1 \
     libxcomposite1 \
     libxdamage1 \
     libxfixes3 \
     libxkbcommon0 \
     libxrandr2 \
+    openssl \
     xdg-utils \
-    && rm -rf /var/lib/apt/lists/* \
-    # Delete broken chrome_crashpad_handler — replacing it with "true" causes
-    # ECONNRESET errors. Removing the binary entirely is cleaner; Chromium
-    # skips crashpad initialization when --disable-crash-reporter is set.
-    && find /usr -name "chrome_crashpad_handler" -delete
+    && rm -rf /var/lib/apt/lists/*
 
-# Tell Puppeteer to use system Chromium
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+# Use Chrome for Testing downloaded in the deps stage (has working crashpad_handler)
+ENV PUPPETEER_EXECUTABLE_PATH=/opt/chrome/chrome-linux64/chrome
 
 RUN groupadd --system --gid 1001 nodejs
 RUN useradd --system --uid 1001 --gid nodejs nextjs
@@ -85,6 +88,9 @@ RUN useradd --system --uid 1001 --gid nodejs nextjs
 # Copy necessary files from builder
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
+
+# Copy Chrome for Testing from deps stage (downloaded from npmmirror mirror)
+COPY --from=deps /opt/chrome /opt/chrome
 
 # Automatically leverage output traces to reduce image size
 # This includes a minimal node_modules

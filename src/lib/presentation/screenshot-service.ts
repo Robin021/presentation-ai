@@ -38,7 +38,7 @@ export async function captureSlideScreenshots(
 
     try {
         // Launch browser with optimized settings for server environment
-        // Uses Puppeteer's bundled Chromium from deps stage cache
+        // Uses Chrome for Testing downloaded in Docker deps stage from npmmirror
         browser = await puppeteer.launch({
             headless: true,
             args: [
@@ -47,10 +47,6 @@ export async function captureSlideScreenshots(
                 "--disable-dev-shm-usage",
                 "--disable-accelerated-2d-canvas",
                 "--disable-gpu",
-                // Disable crash reporting to avoid broken crashpad_handler binary
-                // shipped with Debian's chromium package.
-                "--disable-crash-reporter",
-                // Avoid namespace/seccomp issues when running in Docker/K8s
                 "--no-zygote",
                 "--disable-seccomp-filter-sandbox",
             ],
