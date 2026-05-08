@@ -232,6 +232,21 @@ function generateSlideHTML(
   }
   const svgContentJson = JSON.stringify(svgContentMap);
 
+  // Inline rootImage PNG files as base64 data URIs to avoid network loading issues
+  let rootImageDataUri = "";
+  if (slide.rootImage?.url && !slide.rootImage.url.endsWith(".svg")) {
+    try {
+      const fs = require("fs") as typeof import("fs");
+      const path = require("path") as typeof import("path");
+      const filePath = path.join(process.cwd(), "public", slide.rootImage.url);
+      const ext = path.extname(filePath).slice(1) || "png";
+      const base64 = fs.readFileSync(filePath).toString("base64");
+      rootImageDataUri = `data:image/${ext};base64,${base64}`;
+    } catch {
+      console.warn("Failed to read rootImage for export:", slide.rootImage?.url);
+    }
+  }
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -295,7 +310,7 @@ function generateSlideHTML(
         slide.layoutType === 'left' ? 'row-reverse' : 'row'};
       background-color: ${slide.bgColor || themeColors.background};
       ${slide.layoutType === 'background' && slide.rootImage?.url ?
-        `background-image: url(${slide.rootImage.url.startsWith('/') ? baseUrl + slide.rootImage.url : slide.rootImage.url}); background-size: cover; background-position: center;` : ''}
+        `background-image: url(${rootImageDataUri || (slide.rootImage.url.startsWith('/') ? baseUrl + slide.rootImage.url : slide.rootImage.url)}); background-size: cover; background-position: center;` : ''}
     }
 
     .content-area {
@@ -996,6 +1011,7 @@ function generateSlideHTML(
     var mode = '${mode}';
     var baseUrl = '${baseUrl}';
     var svgContents = ${svgContentJson};
+    var rootImageDataUri = ${rootImageDataUri ? `'${rootImageDataUri}'` : "''"};
 
     // === Utility Functions ===
     function escapeHtml(text) {
@@ -1595,7 +1611,7 @@ function generateSlideHTML(
 
       // Image area for left/right/vertical layouts
       if (slideData.rootImage && slideData.rootImage.url && slideData.layoutType && slideData.layoutType !== 'background') {
-        html += '<div class="image-area" style="background-image: url(' + resolveUrl(slideData.rootImage.url) + ')"></div>';
+        html += '<div class="image-area" style="background-image: url(' + (rootImageDataUri || resolveUrl(slideData.rootImage.url)) + ')"></div>';
       }
 
       container.innerHTML = html;
