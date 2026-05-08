@@ -67,7 +67,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxkbcommon0 \
     libxrandr2 \
     xdg-utils \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    # Replace broken chrome_crashpad_handler with no-op (it fails with --database is required)
+    && find /usr -name "chrome_crashpad_handler" -exec sh -c 'ln -sf /usr/bin/true "$1" && echo "Patched: $1"' _ {} \;
 
 # Set Puppeteer to use system Chromium
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
