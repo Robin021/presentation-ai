@@ -170,26 +170,31 @@ function generateSlideHTML(
   if (fontBody && fontBody !== fontHeading) addFont(fontBody);
   const fontLinksStr = fontLinkTags.join("\n      ");
 
-  // Build @font-face declarations for local TTF fonts
-  const localFonts: Array<{ family: string; url: string }> = [];
-  const ttfFontMap: Record<string, string> = {
-    "Porsche Next TT": "/fonts/porsche-next.ttf",
-    "Porsche Next": "/fonts/porsche-next.ttf",
-  };
-  const addLocalFont = (name: string) => {
-    if (!name || localFonts.some((f) => f.family === name)) return;
-    const ttfPath = ttfFontMap[name];
-    if (!ttfPath) return;
-    localFonts.push({ family: name, url: baseUrl + ttfPath });
-  };
-  if (fontHeading) addLocalFont(fontHeading);
-  if (fontBody) addLocalFont(fontBody);
-  const fontFaceDeclarations = localFonts
-    .map(
-      (f) =>
-        `@font-face{font-family:'${f.family}';src:url('${f.url}') format('truetype');font-weight:normal;font-style:normal;}`,
-    )
-    .join("");
+  // Build @font-face declarations for local Porsche fonts
+  const isPorscheFont =
+    fontHeading?.includes("Porsche") || fontBody?.includes("Porsche");
+  const fontFaceDeclarations = isPorscheFont
+    ? [
+        "@font-face{font-family:'Porsche Next TT';src:url('" +
+          baseUrl +
+          "/fonts/PorscheNextTT-Regular.ttf') format('truetype');font-weight:normal;font-style:normal;}",
+        "@font-face{font-family:'Porsche Next TT';src:url('" +
+          baseUrl +
+          "/fonts/PorscheNextTT-Bold.ttf') format('truetype');font-weight:bold;font-style:normal;}",
+        "@font-face{font-family:'Porsche Next TT';src:url('" +
+          baseUrl +
+          "/fonts/PorscheNextTT-Italic.ttf') format('truetype');font-weight:normal;font-style:italic;}",
+        "@font-face{font-family:'Porsche Next TT';src:url('" +
+          baseUrl +
+          "/fonts/PorscheNextTT-BoldItalic.ttf') format('truetype');font-weight:bold;font-style:italic;}",
+        "@font-face{font-family:'Porsche Next TT';src:url('" +
+          baseUrl +
+          "/fonts/PorscheNextTT-Thin.ttf') format('truetype');font-weight:300;font-style:normal;}",
+        "@font-face{font-family:'Porsche Next';src:url('" +
+          baseUrl +
+          "/fonts/PorscheNext-Regular.otf') format('opentype');font-weight:normal;font-style:normal;}",
+      ].join("")
+    : "";
 
   // Scan slide for SVG images and inline their content (html2canvas doesn't support SVG <img>)
   const svgContentMap: Record<string, string> = {};
