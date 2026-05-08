@@ -394,61 +394,33 @@ export class PlateJSToPPTXConverter {
 
     const elementType = (element as TElement).type;
 
+    // Default heading sizes when element has no explicit fontSize
+    const HEADING_SIZES: Record<string, number> = {
+      h1: 36, h2: 28, h3: 22, h4: 18, h5: 16, h6: 14,
+    };
+
     switch (elementType) {
       case "h1":
-        return this.addHeading(
-          element as HeadingElement,
-          x,
-          y,
-          width,
-          44,
-          measureOnly,
-        );
       case "h2":
-        return this.addHeading(
-          element as HeadingElement,
-          x,
-          y,
-          width,
-          33,
-          measureOnly,
-        );
       case "h3":
-        return this.addHeading(
-          element as HeadingElement,
-          x,
-          y,
-          width,
-          26,
-          measureOnly,
-        );
       case "h4":
-        return this.addHeading(
-          element as HeadingElement,
-          x,
-          y,
-          width,
-          21,
-          measureOnly,
-        );
       case "h5":
+      case "h6": {
+        // Use element-level fontSize if available (from AI generation), else default
+        const elemFontSize = (element as unknown as { fontSize?: number }).fontSize;
+        const defaultSize = HEADING_SIZES[elementType] ?? 22;
+        const ptSize = elemFontSize
+          ? this.parseFontSizeToPoints(elemFontSize) ?? defaultSize
+          : defaultSize;
         return this.addHeading(
           element as HeadingElement,
           x,
           y,
           width,
-          18,
+          ptSize,
           measureOnly,
         );
-      case "h6":
-        return this.addHeading(
-          element as HeadingElement,
-          x,
-          y,
-          width,
-          15,
-          measureOnly,
-        );
+      }
       case "p":
         // Check if paragraph contains block elements (fix for DIVs parsed as P)
         const hasBlockChildren = element.children && element.children.some((child) =>
@@ -580,7 +552,7 @@ export class PlateJSToPPTXConverter {
     fontSize: number,
     measureOnly = false,
   ): number {
-    const height = Math.max(fontSize / 72 + 0.3, 0.8);
+    const height = Math.max(fontSize / 72 + 0.5, 1.0);
     if (measureOnly) return height;
 
     const runs = this.extractTextRuns(element);
@@ -600,8 +572,9 @@ export class PlateJSToPPTXConverter {
         h: height,
         ...textOptions,
         align: "left",
-        fit: "resize",
+        fit: "shrink",
         wrap: true,
+        lineSpacingMultiple: 1.2,
       });
     } else {
       const text = this.extractText(element);
@@ -612,8 +585,9 @@ export class PlateJSToPPTXConverter {
         h: height,
         ...textOptions,
         align: "left",
-        fit: "resize",
+        fit: "shrink",
         wrap: true,
+        lineSpacingMultiple: 1.2,
       });
     }
 
