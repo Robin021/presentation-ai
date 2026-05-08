@@ -110,8 +110,9 @@ export class PlateJSToPPTXConverter {
 
   // Map theme-specific fonts to visually similar PPT-safe alternatives
   private readonly FONT_SUBSTITUTIONS: Record<string, string> = {
-    "Porsche Next TT": "Porsche Next",
-    "Porsche Next TT Bold": "Porsche Next",
+    // "Porsche Next TT" is the actual font family name in the TTF files
+    "Porsche Next TT": "Porsche Next TT",
+    "Porsche Next TT Bold": "Porsche Next TT",
   };
 
   private substituteFont(font: string): string {
@@ -367,6 +368,9 @@ export class PlateJSToPPTXConverter {
 
     let currentY = startY;
     for (const element of elements) {
+      // Skip elements that would overflow the content area
+      if (currentY > area.y + area.h - 0.3) break;
+
       const elementHeight = await this.processElement(
         element,
         area.x,
@@ -375,11 +379,7 @@ export class PlateJSToPPTXConverter {
         false,
       );
       currentY += elementHeight;
-      // Add spacing between elements
       currentY += this.ELEMENT_SPACING;
-
-      // Check with buffer if exceeding boundary
-      if (currentY >= area.y + area.h - 0.1) break;
     }
   }
 
@@ -395,8 +395,9 @@ export class PlateJSToPPTXConverter {
     const elementType = (element as TElement).type;
 
     // Default heading sizes when element has no explicit fontSize
+    // PPT-appropriate heading sizes (standard templates use 24pt for titles)
     const HEADING_SIZES: Record<string, number> = {
-      h1: 36, h2: 28, h3: 22, h4: 18, h5: 16, h6: 14,
+      h1: 24, h2: 20, h3: 14, h4: 13, h5: 12, h6: 11,
     };
 
     switch (elementType) {
@@ -515,6 +516,14 @@ export class PlateJSToPPTXConverter {
           width,
           measureOnly,
         );
+      case "table":
+        return await this.addTable(
+          element as unknown as TElement,
+          x,
+          y,
+          width,
+          measureOnly,
+        );
       case "visualization-list":
         return await this.addVisualizationList(
           element as unknown as TVisualizationListElement,
@@ -552,7 +561,7 @@ export class PlateJSToPPTXConverter {
     fontSize: number,
     measureOnly = false,
   ): number {
-    const height = Math.max(fontSize / 72 + 0.5, 1.0);
+    const height = Math.max(fontSize / 72 + 0.3, 0.6);
     if (measureOnly) return height;
 
     const runs = this.extractTextRuns(element);
@@ -665,10 +674,16 @@ export class PlateJSToPPTXConverter {
     const bullets = element.children.filter(
       (child) => (child as TBulletItemElement).type === "bullet",
     );
-    const columns = Math.min(
-      3,
-      Math.max(1, bullets.length <= 2 ? bullets.length : 3),
+    // Use 2 columns for block content (h3+p) to match web grid layout,
+    // 3 columns for simple text bullets, 1 column for single items.
+    const hasBlockBullets = bullets.some((b) =>
+      (b as TBulletItemElement).children?.some((child) =>
+        ['h1','h2','h3','h4','h5','h6','p','bullets','img','image','div'].includes((child as any).type)
+      ),
     );
+    const columns = hasBlockBullets
+      ? Math.min(2, bullets.length)
+      : Math.min(3, Math.max(1, bullets.length <= 2 ? bullets.length : 3));
     const gap = this.COLUMN_GAP;
     const totalGapWidth = gap * (columns - 1);
     const columnWidth = (width - totalGapWidth) / columns;
@@ -694,17 +709,32 @@ export class PlateJSToPPTXConverter {
       }),
     );
 
+    // Calculate uniform row height from the tallest item in each row
+    const rows = Math.ceil(bullets.length / columns);
+    const rowHeights: number[] = [];
+    for (let r = 0; r < rows; r++) {
+      let maxInRow = 0.6;
+      for (let c = 0; c < columns; c++) {
+        const idx = r * columns + c;
+        if (idx < bulletHeights.length) {
+          maxInRow = Math.max(maxInRow, bulletHeights[idx] ?? 0.8);
+        }
+      }
+      rowHeights.push(maxInRow);
+    }
+    // Use the max row height as uniform height for visual consistency
+    const uniformRowHeight = Math.max(...rowHeights, 0.8) + 0.1;
+
     let maxHeight = 0;
 
     for (let i = 0; i < bullets.length; i++) {
       const bullet = bullets[i] as TBulletItemElement;
       const columnIndex = i % columns;
       const rowIndex = Math.floor(i / columns);
-      // Use measured content height for this bullet
-      const actualHeight = Math.max(bulletHeights[i] ?? 1.3, 1.3);
+      const actualHeight = uniformRowHeight - 0.1;
 
       const bulletX = x + columnIndex * (columnWidth + gap);
-      const bulletY = y + Math.max(0, actualHeight - 1.3) / 2; // center if tall
+      const bulletY = y + rowIndex * uniformRowHeight;
 
       if (!measureOnly) {
         // Add bullet number box
@@ -731,8 +761,8 @@ export class PlateJSToPPTXConverter {
         });
 
         // Add bullet content
-        const contentX = bulletX + 0.5;
-        const contentWidth = columnWidth - 0.55;
+        const contentX = bulletX + 0.4;
+        const contentWidth = columnWidth - 0.4;
 
         // Check if bullet contains block elements
         const hasBlockChildren = bullet.children && bullet.children.some((child) =>
@@ -787,7 +817,7 @@ export class PlateJSToPPTXConverter {
 
       }
 
-      maxHeight = Math.max(maxHeight, (rowIndex + 1) * Math.max(actualHeight, 1.3));
+      maxHeight = Math.max(maxHeight, (rowIndex + 1) * uniformRowHeight);
     }
 
     return maxHeight + 0.3;
@@ -982,11 +1012,8 @@ export class PlateJSToPPTXConverter {
         return Math.max(0.6, Math.min(2.0, estLines * 0.24));
       }),
     );
-    const maxMeasured = Math.max(...measuredHeights, 0.75);
-    // Use a fixed available height (content area estimate) to keep measurement
-    // and rendering consistent regardless of actual y-position
-    const availableHeight = this.SLIDE_HEIGHT - this.MARGIN * 2;
-    const itemHeight = Math.min(maxMeasured, availableHeight / items.length - itemSpacing);
+    // Use measured content height as item height (no fixed cap)
+    const itemHeight = Math.max(...measuredHeights, 0.75);
 
     let currentY = y;
 
@@ -1024,55 +1051,81 @@ export class PlateJSToPPTXConverter {
           valign: "middle",
         });
 
-        // Extract text and try to split title from description
-        const fullText = this.extractText(item);
-        // Try to find a title pattern (first few words before a longer sentence)
-        const titleMatch = fullText.match(/^([A-Z][a-zA-Z\s]+?)(?=[A-Z][a-z]|$)/);
+        // Extract title from h3 child and description from p child
+        const children = (item as unknown as { children?: Array<{ type: string; children: Array<{ text: string }> }> }).children;
         let title = "";
-        let description = fullText;
-
-        // Simple heuristic: first 2-3 words if they're capitalized might be title
-        const words = fullText.split(" ");
-        if (words.length > 3) {
-          // Check if first 2-3 words look like a title
-          const potentialTitle = words.slice(0, 3).join(" ");
-          if (potentialTitle.length < 30 && /^[A-Z]/.test(potentialTitle)) {
-            title = potentialTitle;
-            description = words.slice(3).join(" ");
+        let description = "";
+        if (children) {
+          for (const child of children) {
+            if (child.type === "h3") {
+              title = child.children?.map((c: { text: string }) => c.text).join(" ") ?? "";
+            } else if (child.type === "p") {
+              description = child.children?.map((c: { text: string }) => c.text).join(" ") ?? "";
+            }
           }
         }
+        if (!title) {
+          // Fallback: use heuristic text splitting
+          const fullText = this.extractText(item);
+          const words = fullText.split(" ");
+          if (words.length > 3) {
+            const potentialTitle = words.slice(0, 3).join(" ");
+            if (potentialTitle.length < 30 && /^[A-Z]/.test(potentialTitle)) {
+              title = potentialTitle;
+              description = words.slice(3).join(" ");
+            }
+          }
+          if (!title) { title = ""; description = fullText; }
+        }
 
-        // Add title (bold, heading color) - only if we found a title
-        if (title) {
+        // Render title + description as a single text box with runs
+        if (title && description) {
+          this.currentSlide?.addText(
+            [
+              {
+                text: title + "\n",
+                options: {
+                  fontSize: 14,
+                  bold: true,
+                  color: this.THEME.heading,
+                },
+              },
+              {
+                text: description,
+                options: {
+                  fontSize: 12,
+                  color: this.THEME.text,
+                },
+              },
+            ],
+            {
+              x: textAreaX,
+              y: currentY,
+              w: textAreaWidth,
+              h: itemHeight,
+              valign: "top",
+              align: "left",
+              lineSpacingMultiple: 1.2,
+              wrap: true,
+              fit: "shrink",
+            },
+          );
+        } else if (title) {
           this.currentSlide?.addText(title, {
             x: textAreaX,
             y: currentY,
             w: textAreaWidth,
-            h: itemHeight * 0.4,
+            h: itemHeight,
             fontSize: 14,
             bold: true,
             color: this.THEME.heading,
-            valign: "bottom",
-            align: "left",
-          });
-
-          // Add description below title
-          this.currentSlide?.addText(description, {
-            x: textAreaX,
-            y: currentY + itemHeight * 0.4,
-            w: textAreaWidth,
-            h: itemHeight * 0.6,
-            fontSize: 12,
-            color: this.THEME.text,
             valign: "top",
             align: "left",
-            lineSpacingMultiple: 1.3,
-            fit: "shrink",
             wrap: true,
           });
         } else {
           // No title found, just show all text
-          this.currentSlide?.addText(fullText, {
+          this.currentSlide?.addText(description || "", {
             x: textAreaX,
             y: currentY,
             w: textAreaWidth,
@@ -1533,7 +1586,7 @@ export class PlateJSToPPTXConverter {
     const gap = 0.2;
     const contentX = x + numberWidth + gap;
     const contentWidth = width - numberWidth - gap;
-    const itemSpacing = 0.3;
+    const itemSpacing = 0.15;
 
     let currentY = y;
 
@@ -1598,23 +1651,91 @@ export class PlateJSToPPTXConverter {
             x: contentX,
             y: currentY,
             w: contentWidth,
-            h: numberWidth, // default to align with box
+            h: numberWidth + 0.3, // extra space for readability
             fontSize: 12,
             valign: "top",
             align: "left",
             color: this.THEME.text,
             lineSpacingMultiple: 1.3,
-            fit: "resize",
+            fit: "shrink",
             wrap: true,
           });
         }
-        itemHeight = Math.max(numberWidth, 0.5); // Minimal height
+        itemHeight = Math.max(numberWidth, 0.6); // Minimal height
       }
 
       currentY += itemHeight + itemSpacing;
     }
 
     return currentY - y;
+  }
+
+  private async addTable(
+    element: TElement,
+    x: number,
+    y: number,
+    width: number,
+    measureOnly = false,
+  ): Promise<number> {
+    const rows = (element.children ?? []).filter(
+      (child) => (child as TElement).type === "tr",
+    );
+    if (rows.length === 0) return 0.3;
+
+    // Build PptxGenJS table rows
+    const pptxRows: PptxGenJS.TableRow[] = [];
+    let cols = 1;
+    for (const tr of rows) {
+      const cells = (tr as TElement).children ?? [];
+      cols = Math.max(cols, cells.length);
+      const pptxCells: PptxGenJS.TableCell[] = [];
+      for (const td of cells) {
+        const cellType = (td as TElement).type; // "th" or "td"
+        const text = this.extractText(td);
+        const isHeader = cellType === "th";
+        pptxCells.push({
+          text: text || "",
+          options: {
+            fontSize: isHeader ? 12 : 11,
+            bold: isHeader || undefined,
+            color: isHeader
+              ? "FFFFFF"
+              : this.THEME.text.replace("#", ""),
+            fill: isHeader
+              ? { color: this.THEME.primary.replace("#", "") }
+              : undefined,
+            align: "left",
+            valign: "middle",
+            margin: [4, 6, 4, 6],
+            fontFace: this.pptx.theme?.bodyFontFace || "Inter",
+          },
+        });
+      }
+      pptxRows.push(pptxCells);
+    }
+
+    // Calculate table dimensions
+    const colWidth = width / cols;
+    const rowHeight = 0.4;
+    const totalHeight = rows.length * rowHeight + 0.1;
+
+    if (!measureOnly && this.currentSlide) {
+      this.currentSlide.addTable(pptxRows, {
+        x,
+        y,
+        w: width,
+        colW: Array(cols).fill(colWidth),
+        rowH: Array(rows.length).fill(rowHeight),
+        border: {
+          type: "solid",
+          color: this.THEME.muted.replace("#", ""),
+          pt: 0.5,
+        },
+        autoPage: false,
+      });
+    }
+
+    return totalHeight;
   }
 
   private async addIcons(
