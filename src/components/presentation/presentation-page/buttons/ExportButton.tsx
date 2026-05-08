@@ -1,7 +1,7 @@
 // components/export-ppt-button.tsx
 "use client";
 
-import { exportPresentation } from "@/app/_actions/presentation/exportPresentationActions";
+import { exportPresentation, exportPresentationAsImages } from "@/app/_actions/presentation/exportPresentationActions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -51,115 +51,46 @@ export function ExportButton({
   const handleImageExport = async () => {
     setIsExporting(true);
     try {
-      const slides = usePresentationState.getState().slides;
+      const result = await exportPresentationAsImages(
+        presentationId,
+        fileName,
+        window.location.origin,
+      );
 
-      // Dynamic imports
-      const html2canvas = (await import("html2canvas")).default;
-      const PptxGenJS = (await import("pptxgenjs")).default;
-
-      const pptx = new PptxGenJS();
-      pptx.layout = "LAYOUT_16x9";
-      pptx.title = fileName;
-
-      for (let i = 0; i < slides.length; i++) {
-        // Find the slide element
-        const slideElement = document.querySelector(
-          `.slide-container-${i}`,
-        ) as HTMLElement;
-
-        if (!slideElement) {
-          console.warn(`Slide ${i + 1} not found in DOM`);
-          continue;
+      if (result.success && result.data) {
+        // Create blob from base64 data
+        const byteCharacters = atob(result.data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
         }
-
-        // Capture the slide
-        // Capture the slide
-        const canvas = await html2canvas(slideElement, {
-          scale: 2,
-          useCORS: true,
-          allowTaint: true,
-          logging: false,
-          backgroundColor: null, // Keep transparent
-          onclone: (clonedDoc) => {
-            const clonedElement = clonedDoc.querySelector(
-              `.slide-container-${i}`,
-            ) as HTMLElement;
-            if (clonedElement) {
-              // Reset any transformations that might affect capture
-              clonedElement.style.transform = "none";
-
-              // Inject Porsche font into the cloned document
-              const style = clonedDoc.createElement('style');
-              style.innerHTML = `
-                @font-face {
-                  font-family: 'Porsche Next TT';
-                  src: url('/fonts/porsche-next.woff2') format('woff2');
-                  font-weight: 100 900;
-                  font-style: normal;
-                  font-display: swap;
-                }
-                * {
-                  font-family: 'Porsche Next TT', sans-serif !important;
-                }
-              `;
-              clonedDoc.head.appendChild(style);
-
-              // Helper to fix SVG rendering: explicitly set width/height attributes
-              // html2canvas sometimes struggles with SVGs that only have CSS sizing
-              const images = clonedElement.getElementsByTagName("img");
-              for (let j = 0; j < images.length; j++) {
-                const img = images[j];
-                if (!img) continue;
-                img.style.visibility = "visible";
-
-                // Handle local images
-                if (img.src.startsWith("/")) {
-                  img.crossOrigin = "anonymous";
-                }
-
-                // Explicitly set width/height marks for SVGs to avoid "black bar" or empty render
-                if (img.src.endsWith(".svg") || img.src.includes("data:image/svg")) {
-                  const rect = img.getBoundingClientRect();
-                  if (rect.width > 0 && rect.height > 0) {
-                    img.setAttribute("width", rect.width.toString());
-                    img.setAttribute("height", rect.height.toString());
-                  }
-                }
-              }
-            }
-          },
-          ignoreElements: (element) => {
-            return element.classList.contains("export-ignore");
-          },
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], {
+          type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         });
 
-        const imgData = canvas.toDataURL("image/png");
+        // Create download link
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = result.fileName ?? `${fileName}.pptx`;
+        document.body.appendChild(link);
+        link.click();
 
-        // Add slide to PPT
-        const slide = pptx.addSlide();
+        // Clean up
+        URL.revokeObjectURL(url);
+        document.body.removeChild(link);
 
-        // Use 'contain' to ensure the captured image always fits on the slide
-        // This solves the 'exceeds size' issue regardless of user's screen size or capture resolution
-        slide.addImage({
-          data: imgData,
-          x: 0,
-          y: 0,
-          w: "100%",
-          h: "100%",
-          sizing: { type: "contain", w: 10, h: 5.625 }
+        toast({
+          title: "Export Successful",
+          description: "Your presentation has been exported as images.",
+          variant: "default",
         });
+
+        setIsExportDialogOpen(false);
+      } else {
+        throw new Error(result.error ?? "Export failed");
       }
-
-      // Save the file
-      await pptx.writeFile({ fileName: `${fileName}.pptx` });
-
-      toast({
-        title: "Export Successful",
-        description: "Your presentation has been exported as images.",
-        variant: "default",
-      });
-
-      setIsExportDialogOpen(false);
     } catch (error) {
       console.error("Image export error:", error);
       toast({

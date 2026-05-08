@@ -1,5 +1,9 @@
 /**
  * Export infographics in various formats: HTML, PDF, PPT
+ *
+ * @deprecated The PPT export in this module produces 170MB+ files due to client-side
+ * html2canvas rendering at scale 2. Use exportPresentationAsImages() server action
+ * (Puppeteer-based) for small, high-fidelity PPTX files instead.
  */
 
 import html2canvas from 'html2canvas';
