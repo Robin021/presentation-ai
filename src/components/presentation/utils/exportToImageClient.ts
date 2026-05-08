@@ -63,9 +63,6 @@ export async function exportPresentationAsImagesClient(
     iframe.style.height = "1080px";
     iframe.style.border = "none";
     iframe.style.background = "#ffffff";
-    // Sandbox: allow scripts (needed for the inline renderer) and
-    // same-origin (needed for html2canvas to read the DOM).
-    iframe.setAttribute("sandbox", "allow-scripts allow-same-origin");
     document.body.appendChild(iframe);
 
     // Load the HTML into the iframe via blob URL (srcdoc has origin issues with images)
