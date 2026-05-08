@@ -624,7 +624,8 @@ function generateSlideHTML(
       box-shadow: 0 0 0 2px white, 0 0 0 3px var(--presentation-primary);
     }
     .timeline-connector {
-      width: 100%;
+      width: 24px;
+      flex-shrink: 0;
       height: 2px;
       min-height: 2px;
       border-radius: 1px;
