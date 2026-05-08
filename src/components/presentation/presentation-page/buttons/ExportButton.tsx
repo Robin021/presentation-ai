@@ -54,7 +54,6 @@ export function ExportButton({
       const result = await exportPresentationAsImages(
         presentationId,
         fileName,
-        window.location.origin,
       );
 
       if (result.success && result.data) {
