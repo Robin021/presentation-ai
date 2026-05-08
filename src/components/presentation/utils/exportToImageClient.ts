@@ -115,20 +115,36 @@ export async function exportPresentationAsImagesClient(
     });
 
     // Capture the slide as a JPEG image
-    const canvas = await html2canvas(
-      iframe.contentDocument!.documentElement,
-      {
-        scale: 1,
-        useCORS: true,
-        backgroundColor: null, // preserve slide background from the rendered HTML
-        width: 1920,
-        height: 1080,
-        logging: false,
-        // Allow html2canvas to traverse into foreignObject / shadow roots
-        // that the slide renderer may produce
-        allowTaint: false,
-      },
-    );
+    let canvas;
+    try {
+      canvas = await html2canvas(
+        iframe.contentDocument!.documentElement,
+        {
+          scale: 1,
+          useCORS: true,
+          backgroundColor: null,
+          width: 1920,
+          height: 1080,
+          logging: false,
+          allowTaint: false,
+          imageTimeout: 15000,
+        },
+      );
+    } catch {
+      // Fallback: capture without CORS for same-origin images
+      canvas = await html2canvas(
+        iframe.contentDocument!.documentElement,
+        {
+          scale: 1,
+          useCORS: false,
+          backgroundColor: null,
+          width: 1920,
+          height: 1080,
+          logging: false,
+          allowTaint: false,
+        },
+      );
+    }
 
     const imgData = canvas.toDataURL("image/jpeg", 0.9);
 
