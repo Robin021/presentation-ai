@@ -983,7 +983,9 @@ export class PlateJSToPPTXConverter {
       }),
     );
     const maxMeasured = Math.max(...measuredHeights, 0.75);
-    const availableHeight = this.SLIDE_HEIGHT - y - 0.3;
+    // Use a fixed available height (content area estimate) to keep measurement
+    // and rendering consistent regardless of actual y-position
+    const availableHeight = this.SLIDE_HEIGHT - this.MARGIN * 2;
     const itemHeight = Math.min(maxMeasured, availableHeight / items.length - itemSpacing);
 
     let currentY = y;
